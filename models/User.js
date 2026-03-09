@@ -27,6 +27,33 @@ const User = {
     return rows[0];
   },
 
+  // Balansga pul qo'shish (deposit)
+  async deposit(id, amount) {
+    if (amount <= 0) throw new Error("Summa musbat bo'lishi kerak");
+    const { rows } = await query(
+      `UPDATE users
+       SET balance = balance + $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [amount, id]
+    );
+    return rows[0] || null;
+  },
+
+  // Balansdan pul ayirish (pay) — yetarli mablag' tekshiruvi bilan
+  async deduct(id, amount) {
+    if (amount <= 0) throw new Error("Summa musbat bo'lishi kerak");
+    const { rows } = await query(
+      `UPDATE users
+       SET balance = balance - $1, updated_at = NOW()
+       WHERE id = $2 AND balance >= $1
+       RETURNING *`,
+      [amount, id]
+    );
+    if (!rows[0]) throw new Error("Balansda yetarli mablag' yo'q");
+    return rows[0];
+  },
+
   async findByIdAndUpdate(id, update) {
     const fields = [];
     const values = [];

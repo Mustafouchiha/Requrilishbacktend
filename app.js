@@ -5,13 +5,16 @@ const authRoutes = require("./routes/auth");
 const productRoutes = require("./routes/products");
 const offerRoutes = require("./routes/offers");
 const paymentRoutes = require("./routes/payments");
+const walletRoutes = require("./routes/wallet");
 
 const app = express();
 
 // ── CORS ──────────────────────────────────────────────────────────
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  "https://re-market-frontend.vercel.app",
   "http://localhost:5173",
+  "http://127.0.0.1:5173",
   "http://localhost:3000",
 ].filter(Boolean);
 
@@ -49,6 +52,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/wallet", walletRoutes);
 
 // ── Health check ─────────────────────────────────────────────────
 app.get("/", (_req, res) => {

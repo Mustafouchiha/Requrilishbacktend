@@ -1,6 +1,7 @@
 const { Pool } = require("pg");
 
 let pool;
+let _tablesReady = null; // Lazy init promise — bir marta ishga tushadi
 
 function getPool() {
   if (!pool) {
@@ -21,15 +22,27 @@ function getPool() {
   return pool;
 }
 
-async function connect() {
-  const p = getPool();
-  await initTables(p);
-  return p;
+// Jadvallar faqat bir marta yaratiladi (lazy)
+function ensureTables() {
+  if (!_tablesReady) {
+    _tablesReady = initTables(getPool()).catch((err) => {
+      _tablesReady = null; // xato bo'lsa keyingi so'rovda qayta urinilsin
+      throw err;
+    });
+  }
+  return _tablesReady;
 }
 
+// server.js startup uchun
+async function connect() {
+  await ensureTables();
+  return getPool();
+}
+
+// Barcha model so'rovlari shu orqali o'tadi (jadvallar avtomatik tayyor bo'ladi)
 async function query(text, params) {
-  const p = getPool();
-  return p.query(text, params);
+  await ensureTables();
+  return getPool().query(text, params);
 }
 
 // ── SQL jadvallarni yaratish (agar mavjud bo'lmasa) ───────────────
@@ -43,10 +56,22 @@ async function initTables(p) {
       phone       VARCHAR(50)  NOT NULL UNIQUE,
       telegram    VARCHAR(255) DEFAULT '',
       avatar      TEXT,
+      balance     NUMERIC      NOT NULL DEFAULT 0,
       joined      TIMESTAMPTZ  DEFAULT NOW(),
       created_at  TIMESTAMPTZ  DEFAULT NOW(),
       updated_at  TIMESTAMPTZ  DEFAULT NOW()
     );
+
+    -- Mavjud jadvalga balance ustunini qo'shish (agar yo'q bo'lsa)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'balance'
+      ) THEN
+        ALTER TABLE users ADD COLUMN balance NUMERIC NOT NULL DEFAULT 0;
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS products (
       id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
