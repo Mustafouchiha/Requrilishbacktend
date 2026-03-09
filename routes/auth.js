@@ -2,27 +2,11 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/auth");
-const { sendSMS } = require("../utils/sms");
 
 const router = express.Router();
 
-// ── OTP: telefon → 6 xonali kod (xotirada saqlanadi) ─────────────
-const otpStore = new Map(); // phone → { code, expires }
-
-const genCode = () => String(Math.floor(100000 + Math.random() * 900000));
-
 const makeToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
-
-function otpRequired() {
-  if (process.env.SMS_ENABLED !== undefined) return process.env.SMS_ENABLED === "true";
-  return true;
-}
-
-function otpStrict() {
-  if (process.env.OTP_STRICT !== undefined) return process.env.OTP_STRICT === "true";
-  return false;
-}
 
 const formatUser = (u) => ({
   id:       u.id,
@@ -31,55 +15,24 @@ const formatUser = (u) => ({
   telegram: u.telegram,
   avatar:   u.avatar,
   joined:   u.joined,
+  balance:  u.balance,
 });
 
-// POST /api/auth/send-code
-router.post("/send-code", async (req, res) => {
+// POST /api/auth/send-code  (SMS yo'q — faqat OK qaytaradi)
+router.post("/send-code", (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ message: "Telefon raqam majburiy" });
-
-  if (!otpRequired()) {
-    return res.json({
-      message: "SMS o'chiq — kod talab qilinmaydi",
-      phone,
-      otpRequired: false,
-    });
-  }
-
-  const code    = genCode();
-  const expires = Date.now() + 5 * 60 * 1000;
-  otpStore.set(phone, { code, expires });
-
-  try {
-    await sendSMS(phone, `ReMarket tasdiqlash kodi: ${code}\nMuddat: 5 daqiqa`);
-    res.json({ message: "Kod yuborildi", phone, otpRequired: true });
-  } catch (err) {
-    console.error("SMS xatosi:", err.message);
-    res.json({ message: "Kod yuborildi (console)", phone, otpRequired: true });
-  }
+  res.json({ message: "Demo rejim: ixtiyoriy kod kiriting", phone, otpRequired: false });
 });
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   try {
-    const { name, phone, code, telegram } = req.body;
-
+    const { name, phone, telegram } = req.body;
     if (!name || !phone)
       return res.status(400).json({ message: "Ism va telefon majburiy" });
 
-    if (otpRequired()) {
-      if (!code) return res.status(400).json({ message: "Kod majburiy" });
-      if (otpStrict()) {
-        const otp = otpStore.get(phone);
-        if (!otp) return res.status(400).json({ message: "Avval kod so'rang" });
-        if (Date.now() > otp.expires)
-          return res.status(400).json({ message: "Kod muddati tugagan. Qayta so'rang" });
-        if (otp.code !== code)
-          return res.status(400).json({ message: "Kod noto'g'ri" });
-        otpStore.delete(phone);
-      }
-    }
-
+    // Avvaldan ro'yxatdan o'tgan bo'lsa — o'sha userni qaytaradi
     const exists = await User.findOne({ phone });
     const user = exists || (await User.create({ name, phone, telegram: telegram || "" }));
     const token = makeToken(user.id);
@@ -93,22 +46,8 @@ router.post("/register", async (req, res) => {
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
-    const { phone, code } = req.body;
-
+    const { phone } = req.body;
     if (!phone) return res.status(400).json({ message: "Telefon majburiy" });
-
-    if (otpRequired()) {
-      if (!code) return res.status(400).json({ message: "Kod majburiy" });
-      if (otpStrict()) {
-        const otp = otpStore.get(phone);
-        if (!otp) return res.status(400).json({ message: "Avval kod so'rang" });
-        if (Date.now() > otp.expires)
-          return res.status(400).json({ message: "Kod muddati tugagan. Qayta so'rang" });
-        if (otp.code !== code)
-          return res.status(400).json({ message: "Kod noto'g'ri" });
-        otpStore.delete(phone);
-      }
-    }
 
     const user = await User.findOne({ phone });
     if (!user)
