@@ -13,19 +13,16 @@ const app = express();
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "https://re-market-frontend.vercel.app",
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:3000",
 ].filter(Boolean);
+
+const isLocalhost = (origin) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 
 app.use(
   cors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
-      if (
-        allowedOrigins.includes(origin) ||
-        process.env.NODE_ENV !== "production"
-      ) {
+      if (allowedOrigins.includes(origin) || isLocalhost(origin)) {
         return cb(null, true);
       }
       cb(new Error("CORS: ruxsat yo'q — " + origin));

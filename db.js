@@ -116,6 +116,12 @@ async function initTables(p) {
       created_at   TIMESTAMPTZ DEFAULT NOW(),
       updated_at   TIMESTAMPTZ DEFAULT NOW()
     );
+
+    CREATE INDEX IF NOT EXISTS idx_products_active_created ON products (is_active, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_products_owner ON products (owner_id);
+    CREATE INDEX IF NOT EXISTS idx_products_category ON products (category);
+    CREATE INDEX IF NOT EXISTS idx_offers_buyer ON offers (buyer_id);
+    CREATE INDEX IF NOT EXISTS idx_offers_seller ON offers (seller_id);
   `);
 }
 
