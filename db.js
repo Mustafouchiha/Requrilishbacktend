@@ -117,6 +117,17 @@ async function initTables(p) {
       updated_at   TIMESTAMPTZ DEFAULT NOW()
     );
 
+    -- Mavjud jadvalga photos ustunini qo'shish (agar yo'q bo'lsa)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'products' AND column_name = 'photos'
+      ) THEN
+        ALTER TABLE products ADD COLUMN photos TEXT;
+      END IF;
+    END $$;
+
     CREATE INDEX IF NOT EXISTS idx_products_active_created ON products (is_active, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_products_owner ON products (owner_id);
     CREATE INDEX IF NOT EXISTS idx_products_category ON products (category);

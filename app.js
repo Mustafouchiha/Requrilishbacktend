@@ -15,14 +15,15 @@ const allowedOrigins = [
   "https://re-market-frontend.vercel.app",
 ].filter(Boolean);
 
-const isLocalhost = (origin) =>
-  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+const isLocalhost  = (o) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);
+const isVercelApp  = (o) => /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(o);
+const isRenderApp  = (o) => /^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(o);
 
 app.use(
   cors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
-      if (allowedOrigins.includes(origin) || isLocalhost(origin)) {
+      if (allowedOrigins.includes(origin) || isLocalhost(origin) || isVercelApp(origin) || isRenderApp(origin)) {
         return cb(null, true);
       }
       cb(new Error("CORS: ruxsat yo'q — " + origin));

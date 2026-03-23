@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: remarket-api
+    env: node
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
