@@ -6,6 +6,12 @@ const { connect } = require("./db");
 async function start() {
   await connect();
 
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    require('./bot');
+  } else {
+    console.log('⚠️  TELEGRAM_BOT_TOKEN topilmadi — bot ishga tushmadi');
+  }
+
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`🚀 Server http://localhost:${PORT} da ishlamoqda`);
