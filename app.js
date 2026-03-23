@@ -12,6 +12,7 @@ const app = express();
 // ── CORS ──────────────────────────────────────────────────────────
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  "https://frontend-353d.vercel.app",
   "https://re-market-frontend.vercel.app",
 ].filter(Boolean);
 
