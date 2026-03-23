@@ -8,3 +8,17 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_PXiYo4fUI9JH@ep-autumn-field-a9gjr37i-pooler.gwc.azure.neon.tech/neondb?sslmode=require
+      - key: JWT_SECRET
+        value: 10000000
+      - key: SMS_ENABLED
+        value: false
+      - key: PAYMENT_ENABLED
+        value: false
+      - key: OTP_STRICT
+        value: false
+      - key: CLIENT_URL
+        value: https://frontend-353d.vercel.app
