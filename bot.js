@@ -10,19 +10,16 @@ function getBot() {
 
     bot.command('start', (ctx) => {
       const firstName = ctx.from.first_name;
-      const phone = ctx.from.username ? `@${ctx.from.username}` : '';
       ctx.reply(
-        `Salom, ${firstName}${phone ? ` (${phone})` : '(0_0)'}! 👋\n\nReMarket — qayta ishlangan qurilish materiallari bozori.\n\nQuyidagi tugmani bosib ilovaga kiring:`,
+        `Salom, ${firstName}! 👋`,
         {
           reply_markup: {
-            keyboard: [[
+            inline_keyboard: [[
               {
                 text: '🚀 Mini Appga kirish',
                 web_app: { url: MINI_APP_URL },
               },
             ]],
-            resize_keyboard: true,
-            persistent: true,
           },
         }
       );
