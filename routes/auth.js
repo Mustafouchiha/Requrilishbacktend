@@ -5,8 +5,10 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
+const JWT_SECRET = process.env.JWT_SECRET || 'remarket_secret_key_2024';
+
 const makeToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+  jwt.sign({ id }, JWT_SECRET, { expiresIn: "30d" });
 
 const formatUser = (u) => ({
   id:       u.id,
