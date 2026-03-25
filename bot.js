@@ -11,15 +11,17 @@ function getBot() {
     bot.command('start', (ctx) => {
       const firstName = ctx.from.first_name;
       ctx.reply(
-        `Salom, ${firstName}! 👋\n\nQuyidagi tugmani bosib ilovaga kiring:`,
+        `Salom, ${firstName}! 👋\n\nReMarket — qayta ishlangan qurilish materiallari bozori.\n\nQuyidagi tugmani bosib ilovaga kiring:`,
         {
           reply_markup: {
-            inline_keyboard: [[
+            keyboard: [[
               {
-                text: '🚀 Ilovani ochish',
+                text: '🚀 Mini Appga kirish',
                 web_app: { url: MINI_APP_URL },
               },
             ]],
+            resize_keyboard: true,
+            persistent: true,
           },
         }
       );
