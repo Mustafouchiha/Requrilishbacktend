@@ -65,6 +65,18 @@ app.get("/", (_req, res) => {
   });
 });
 
+// ── Bot status ────────────────────────────────────────
+app.get("/bot-status", (_req, res) => {
+  const tokenSet = !!process.env.TELEGRAM_BOT_TOKEN;
+  const { getBot } = require('./bot');
+  const botRunning = !!getBot();
+  res.json({
+    tokenSet,
+    botRunning,
+    miniAppUrl: process.env.MINI_APP_URL || 'https://frontend-353d.vercel.app/',
+  });
+});
+
 // ── 404 ───────────────────────────────────────────────────────────
 app.use((_req, res) => {
   res.status(404).json({ message: "Bu yo'l topilmadi" });
