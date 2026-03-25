@@ -8,11 +8,11 @@ function getBot() {
   if (!bot && process.env.TELEGRAM_BOT_TOKEN) {
     bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
-    bot.on('contact', (ctx) => {
-      const phone = ctx.message.contact.phone_number;
-    
+    bot.command('start', (ctx) => {
+      const firstName = ctx.from.first_name;
+      const phone = ctx.from.username ? `@${ctx.from.username}` : '';
       ctx.reply(
-        `Salom, ${phone}! 👋\n\nReMarket — qayta ishlangan qurilish materiallari bozori.\n\nQuyidagi tugmani bosib ilovaga kiring:`,
+        `Salom, ${firstName}${phone ? ` (${phone})` : ''}! 👋\n\nReMarket — qayta ishlangan qurilish materiallari bozori.\n\nQuyidagi tugmani bosib ilovaga kiring:`,
         {
           reply_markup: {
             keyboard: [[
@@ -22,6 +22,7 @@ function getBot() {
               },
             ]],
             resize_keyboard: true,
+            persistent: true,
           },
         }
       );
