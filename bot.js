@@ -9,9 +9,25 @@ function getBot() {
     bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
     bot.command('start', (ctx) => {
-      const firstName = ctx.from.first_name;
       ctx.reply(
-        `Salom, ${firstName}! 👋`,
+        `Salom! 👋 Davom etish uchun telefon raqamingizni yuboring:`,
+        {
+          reply_markup: {
+            keyboard: [[
+              { text: '📱 Telefon raqamni yuborish', request_contact: true },
+            ]],
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          },
+        }
+      );
+    });
+
+    bot.on('contact', (ctx) => {
+      const firstName = ctx.from.first_name || '';
+      const phone = ctx.message.contact.phone_number;
+      ctx.reply(
+        `Salom, ${firstName} (${phone})! 👋`,
         {
           reply_markup: {
             inline_keyboard: [[
