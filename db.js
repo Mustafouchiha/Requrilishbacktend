@@ -73,6 +73,17 @@ async function initTables(p) {
       END IF;
     END $$;
 
+    -- Mavjud jadvalga tg_chat_id ustunini qo'shish (agar yo'q bo'lsa)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'tg_chat_id'
+      ) THEN
+        ALTER TABLE users ADD COLUMN tg_chat_id BIGINT;
+      END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS products (
       id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       name        VARCHAR(255) NOT NULL,
