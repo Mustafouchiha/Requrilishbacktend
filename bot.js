@@ -12,7 +12,7 @@ function getBot() {
       const firstName = ctx.from.first_name;
       const phone = ctx.from.username ? `@${ctx.from.username}` : '';
       ctx.reply(
-        `Salom, ${firstName}${phone ? ` (${phone})` : ''}! 👋\n\nReMarket — qayta ishlangan qurilish materiallari bozori.\n\nQuyidagi tugmani bosib ilovaga kiring:`,
+        `Salom, ${firstName}${phone ? ` (${phone})` : '(0_0)'}! 👋\n\nReMarket — qayta ishlangan qurilish materiallari bozori.\n\nQuyidagi tugmani bosib ilovaga kiring:`,
         {
           reply_markup: {
             keyboard: [[
