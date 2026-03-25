@@ -41,8 +41,9 @@ function getBot() {
       );
     });
 
-    bot.launch();
-    console.log('🤖 Telegram bot ishga tushdi');
+    bot.launch()
+      .then(() => console.log('🤖 Telegram bot ishga tushdi'))
+      .catch(err => console.error('❌ Bot launch xatosi:', err.message));
   }
   return bot;
 }
