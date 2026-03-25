@@ -1,4 +1,4 @@
-const TelegramBot = require('node-telegram-bot-api');
+const { Telegraf } = require('telegraf');
 
 const MINI_APP_URL = process.env.MINI_APP_URL || 'https://frontend-353d.vercel.app/';
 
@@ -6,14 +6,11 @@ let bot = null;
 
 function getBot() {
   if (!bot && process.env.TELEGRAM_BOT_TOKEN) {
-    bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
+    bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
-    bot.onText(/\/start/, (msg) => {
-      const chatId = msg.chat.id;
-      const firstName = msg.from.first_name;
-
-      bot.sendMessage(
-        chatId,
+    bot.command('start', (ctx) => {
+      const firstName = ctx.from.first_name;
+      ctx.reply(
         `Salom, ${firstName}! 👋\n\nQuyidagi tugmani bosib ilovaga kiring:`,
         {
           reply_markup: {
@@ -28,6 +25,7 @@ function getBot() {
       );
     });
 
+    bot.launch();
     console.log('🤖 Telegram bot ishga tushdi');
   }
   return bot;
@@ -38,7 +36,7 @@ async function notifyUser(tgChatId, text, extra = {}) {
   const b = getBot();
   if (!b || !tgChatId) return;
   try {
-    await b.sendMessage(tgChatId, text, extra);
+    await b.telegram.sendMessage(tgChatId, text, extra);
   } catch (e) {
     console.error('Bot xabar yuborishda xato:', e.message);
   }
