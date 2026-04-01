@@ -32,6 +32,7 @@ router.get("/", optionalAuth, async (req, res) => {
       viloyat:      p.viloyat,
       tuman:        p.tuman,
       photo:        p.photo,
+      photos:       p.photos ? JSON.parse(p.photos) : (p.photo ? [p.photo] : []),
       ownerId:      p.owner_id,
       ownerName:    p.owner_name,
       ownerPhone:   loggedIn ? p.owner_phone : null,
@@ -61,6 +62,7 @@ router.get("/my", authMiddleware, async (req, res) => {
       viloyat:   p.viloyat,
       tuman:     p.tuman,
       photo:     p.photo,
+      photos:    p.photos ? JSON.parse(p.photos) : (p.photo ? [p.photo] : []),
       ownerId:   p.owner_id,
       createdAt: p.created_at,
     }));
@@ -74,11 +76,15 @@ router.get("/my", authMiddleware, async (req, res) => {
 // POST /api/products — yangi mahsulot qo'shish
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { name, category, price, unit, qty, condition, viloyat, tuman, photo } = req.body;
+    const { name, category, price, unit, qty, condition, viloyat, tuman, photo, photos } = req.body;
 
     if (!name || !price || !qty || !viloyat) {
       return res.status(400).json({ message: "Barcha majburiy maydonlarni to'ldiring" });
     }
+
+    const photosJson = Array.isArray(photos) && photos.length
+      ? JSON.stringify(photos)
+      : (photo ? JSON.stringify([photo]) : null);
 
     const product = await Product.create({
       name,
@@ -89,9 +95,12 @@ router.post("/", authMiddleware, async (req, res) => {
       condition: condition || "Yaxshi",
       viloyat,
       tuman:     tuman || "",
-      photo:     photo || null,
+      photo:     photo || (Array.isArray(photos) ? photos[0] : null) || null,
+      photos:    photosJson,
       owner_id:  req.user.id,
     });
+
+    const parsedPhotos = product.photos ? JSON.parse(product.photos) : (product.photo ? [product.photo] : []);
 
     res.status(201).json({
       id:        product.id,
@@ -104,6 +113,7 @@ router.post("/", authMiddleware, async (req, res) => {
       viloyat:   product.viloyat,
       tuman:     product.tuman,
       photo:     product.photo,
+      photos:    parsedPhotos,
       ownerId:   product.owner_id,
       ownerName: req.user.name,
       createdAt: product.created_at,

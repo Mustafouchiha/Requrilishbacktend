@@ -59,10 +59,11 @@ const User = {
     const values = [];
     let i = 1;
 
-    if (update.name !== undefined)     { fields.push(`name = $${i++}`);     values.push(update.name); }
-    if (update.phone !== undefined)    { fields.push(`phone = $${i++}`);    values.push(update.phone); }
-    if (update.telegram !== undefined) { fields.push(`telegram = $${i++}`); values.push(update.telegram); }
-    if (update.avatar !== undefined)   { fields.push(`avatar = $${i++}`);   values.push(update.avatar); }
+    if (update.name !== undefined)       { fields.push(`name = $${i++}`);        values.push(update.name); }
+    if (update.phone !== undefined)      { fields.push(`phone = $${i++}`);       values.push(update.phone); }
+    if (update.telegram !== undefined)   { fields.push(`telegram = $${i++}`);    values.push(update.telegram); }
+    if (update.avatar !== undefined)     { fields.push(`avatar = $${i++}`);      values.push(update.avatar); }
+    if (update.tg_chat_id !== undefined) { fields.push(`tg_chat_id = $${i++}`);  values.push(update.tg_chat_id); }
 
     fields.push(`updated_at = NOW()`);
     values.push(id);

@@ -1,7 +1,9 @@
 const express = require("express");
 const Offer = require("../models/Offer");
 const Product = require("../models/Product");
+const User = require("../models/User");
 const authMiddleware = require("../middleware/auth");
+const { notifyUser } = require("../bot");
 
 const router = express.Router();
 
@@ -38,6 +40,29 @@ router.post("/", authMiddleware, async (req, res) => {
       seller_id:  product.owner_id,
       message:    message || "",
     });
+
+    // Sotuvchiga Telegram orqali xabar yuborish
+    const seller = await User.findById(product.owner_id);
+    if (seller?.tg_chat_id) {
+      const MINI_APP_URL = process.env.MINI_APP_URL || 'https://frontend-353d.vercel.app/';
+      await notifyUser(
+        seller.tg_chat_id,
+        `📦 Yangi taklif keldi!\n\n` +
+        `👤 Xaridor: ${req.user.name} (${req.user.phone})\n` +
+        `🧱 Mahsulot: ${product.name}\n` +
+        `💰 Narx: ${Number(product.price).toLocaleString()} so'm\n` +
+        (message ? `💬 Xabar: ${message}\n` : '') +
+        `\nReMarket'da ko'rish →`,
+        {
+          reply_markup: {
+            inline_keyboard: [[{
+              text: '📋 Taklifni ko\'rish',
+              web_app: { url: MINI_APP_URL },
+            }]],
+          },
+        }
+      );
+    }
 
     res.status(201).json({
       id:           offer.id,

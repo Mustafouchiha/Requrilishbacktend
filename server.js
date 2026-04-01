@@ -6,8 +6,9 @@ const { connect } = require("./db");
 async function start() {
   await connect();
 
+  const { getBot } = require('./bot');
   if (process.env.TELEGRAM_BOT_TOKEN) {
-    require('./bot');
+    getBot();
   } else {
     console.log('⚠️  TELEGRAM_BOT_TOKEN topilmadi — bot ishga tushmadi');
   }

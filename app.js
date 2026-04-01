@@ -12,20 +12,19 @@ const app = express();
 // ── CORS ──────────────────────────────────────────────────────────
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  "https://frontend-353d.vercel.app",
   "https://re-market-frontend.vercel.app",
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:3000",
 ].filter(Boolean);
+
+const isLocalhost  = (o) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);
+const isVercelApp  = (o) => /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(o);
+const isRenderApp  = (o) => /^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(o);
 
 app.use(
   cors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
-      if (
-        allowedOrigins.includes(origin) ||
-        process.env.NODE_ENV !== "production"
-      ) {
+      if (allowedOrigins.includes(origin) || isLocalhost(origin) || isVercelApp(origin) || isRenderApp(origin)) {
         return cb(null, true);
       }
       cb(new Error("CORS: ruxsat yo'q — " + origin));
@@ -63,6 +62,18 @@ app.get("/", (_req, res) => {
     smsEnabled: process.env.SMS_ENABLED === "true",
     paymentEnabled: process.env.PAYMENT_ENABLED === "true",
     timestamp: new Date().toISOString(),
+  });
+});
+
+// ── Bot status ────────────────────────────────────────
+app.get("/bot-status", (_req, res) => {
+  const tokenSet = !!process.env.TELEGRAM_BOT_TOKEN;
+  const { getBot } = require('./bot');
+  const botRunning = !!getBot();
+  res.json({
+    tokenSet,
+    botRunning,
+    miniAppUrl: process.env.MINI_APP_URL || 'https://frontend-353d.vercel.app/',
   });
 });
 

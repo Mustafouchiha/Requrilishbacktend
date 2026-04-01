@@ -73,6 +73,17 @@ async function initTables(p) {
       END IF;
     END $$;
 
+    -- Mavjud jadvalga tg_chat_id ustunini qo'shish (agar yo'q bo'lsa)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'tg_chat_id'
+      ) THEN
+        ALTER TABLE users ADD COLUMN tg_chat_id BIGINT;
+      END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS products (
       id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       name        VARCHAR(255) NOT NULL,
@@ -116,6 +127,23 @@ async function initTables(p) {
       created_at   TIMESTAMPTZ DEFAULT NOW(),
       updated_at   TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- Mavjud jadvalga photos ustunini qo'shish (agar yo'q bo'lsa)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'products' AND column_name = 'photos'
+      ) THEN
+        ALTER TABLE products ADD COLUMN photos TEXT;
+      END IF;
+    END $$;
+
+    CREATE INDEX IF NOT EXISTS idx_products_active_created ON products (is_active, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_products_owner ON products (owner_id);
+    CREATE INDEX IF NOT EXISTS idx_products_category ON products (category);
+    CREATE INDEX IF NOT EXISTS idx_offers_buyer ON offers (buyer_id);
+    CREATE INDEX IF NOT EXISTS idx_offers_seller ON offers (seller_id);
   `);
 }
 
