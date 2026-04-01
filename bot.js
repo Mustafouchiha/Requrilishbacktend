@@ -60,13 +60,13 @@ function getBot() {
         const isNew = !user;
         await ctx.reply(
           isNew
-            ? `Salom, ${firstName}! 👋\n\nSiz yangi foydalanuvchisiz.\nQuyidagi tugmani bosib ro'yxatdan o'ting:`
-            : `Salom, ${firstName}! ✅\n\nQuyidagi tugmani bosib saytga kiring.\n⏱ Havola 5 daqiqa amal qiladi:`,
+            ? `Salom, ${firstName}! 👋\n\nSiz yangi foydalanuvchisiz.\nQuyidagi tugmani bosing:`
+            : `Salom, ${firstName}! ✅\n\nQuyidagi tugmani bosib kiring.\n⏱ Havola 5 daqiqa amal qiladi:`,
           {
             reply_markup: {
               inline_keyboard: [[
                 {
-                  text: isNew ? '📝 Ro\'yxatdan o\'tish' : '🚀 Saytga kirish',
+                  text: '🚀 Mini Appga kirish',
                   web_app: { url: appUrl },
                 },
               ]],
