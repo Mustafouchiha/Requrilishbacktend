@@ -72,6 +72,24 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// GET /api/auth/tg-token/:token  — Telegram bot yuborgan 1 martalik token orqali kirish
+router.get("/tg-token/:token", async (req, res) => {
+  try {
+    const { verifyToken } = require('../tgTokens');
+    const data = verifyToken(req.params.token);
+    if (!data) {
+      return res.status(400).json({ message: "Token yaroqsiz yoki muddati o'tgan (5 daqiqa)" });
+    }
+    const user = await User.findById(data.userId);
+    if (!user) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
+
+    const token = makeToken(user.id);
+    res.json({ token, user: formatUser(user) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET /api/auth/me
 router.get("/me", authMiddleware, (req, res) => {
   res.json(formatUser(req.user));
