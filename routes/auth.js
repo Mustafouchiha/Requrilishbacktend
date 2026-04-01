@@ -5,8 +5,10 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
+const JWT_SECRET = process.env.JWT_SECRET || 'remarket_secret_key_2024';
+
 const makeToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+  jwt.sign({ id }, JWT_SECRET, { expiresIn: "30d" });
 
 const formatUser = (u) => ({
   id:       u.id,
@@ -28,15 +30,20 @@ router.post("/send-code", (req, res) => {
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   try {
-    const { name, phone, telegram } = req.body;
+    const { name, phone, telegram, tgChatId } = req.body;
     if (!name || !phone)
       return res.status(400).json({ message: "Ism va telefon majburiy" });
 
     // Avvaldan ro'yxatdan o'tgan bo'lsa — o'sha userni qaytaradi
     const exists = await User.findOne({ phone });
-    const user = exists || (await User.create({ name, phone, telegram: telegram || "" }));
-    const token = makeToken(user.id);
+    let user = exists || (await User.create({ name, phone, telegram: telegram || "" }));
 
+    // Telegram chat_id ni saqlash
+    if (tgChatId && user.tg_chat_id !== tgChatId) {
+      user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+    }
+
+    const token = makeToken(user.id);
     res.status(201).json({ token, user: formatUser(user) });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -46,12 +53,35 @@ router.post("/register", async (req, res) => {
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, tgChatId } = req.body;
     if (!phone) return res.status(400).json({ message: "Telefon majburiy" });
 
-    const user = await User.findOne({ phone });
+    let user = await User.findOne({ phone });
     if (!user)
       return res.status(404).json({ message: "Bu raqam topilmadi. Ro'yxatdan o'ting" });
+
+    // Telegram chat_id ni yangilash
+    if (tgChatId && user.tg_chat_id !== tgChatId) {
+      user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+    }
+
+    const token = makeToken(user.id);
+    res.json({ token, user: formatUser(user) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/auth/tg-token/:token  — Telegram bot yuborgan 1 martalik token orqali kirish
+router.get("/tg-token/:token", async (req, res) => {
+  try {
+    const { verifyToken } = require('../tgTokens');
+    const data = verifyToken(req.params.token);
+    if (!data) {
+      return res.status(400).json({ message: "Token yaroqsiz yoki muddati o'tgan (5 daqiqa)" });
+    }
+    const user = await User.findById(data.userId);
+    if (!user) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
 
     const token = makeToken(user.id);
     res.json({ token, user: formatUser(user) });
