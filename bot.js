@@ -34,28 +34,41 @@ function getBot() {
       const phone = rawPhone.startsWith('998') ? rawPhone.slice(3) : rawPhone;
 
       try {
-        // Foydalanuvchini topish yoki yaratish
         let user = await User.findOne({ phone });
-        if (!user) {
+
+        let appUrl;
+        if (user) {
+          // Mavjud foydalanuvchi — 1 martalik token bilan avtomatik kirish
+          if (String(user.tg_chat_id) !== String(tgChatId)) {
+            user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+          }
+          const token = createToken(user.id);
+          appUrl = `${MINI_APP_URL}?tgToken=${token}`;
+        } else {
+          // Yangi foydalanuvchi — Mini App ichida ro'yxatdan o'tish
           const tgUsername = ctx.from.username ? `@${ctx.from.username}` : '';
-          user = await User.create({ name: firstName, phone, telegram: tgUsername });
+          const params = new URLSearchParams({
+            phone,
+            tgChatId: String(tgChatId),
+            name: firstName,
+            telegram: tgUsername,
+            register: '1',
+          });
+          appUrl = `${MINI_APP_URL}?${params.toString()}`;
         }
 
-        // tg_chat_id ni saqlash/yangilash
-        if (String(user.tg_chat_id) !== String(tgChatId)) {
-          user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
-        }
-
-        // 1 martalik login token (5 daqiqa amal qiladi)
-        const token = createToken(user.id);
-        const loginUrl = `${MINI_APP_URL}?tgToken=${token}`;
-
+        const isNew = !user;
         await ctx.reply(
-          `Salom, ${firstName}! ✅\n\nQuyidagi tugma orqali saytga kiring.\n⏱ Havola 5 daqiqa amal qiladi:`,
+          isNew
+            ? `Salom, ${firstName}! 👋\n\nSiz yangi foydalanuvchisiz.\nQuyidagi tugmani bosib ro'yxatdan o'ting:`
+            : `Salom, ${firstName}! ✅\n\nQuyidagi tugmani bosib saytga kiring.\n⏱ Havola 5 daqiqa amal qiladi:`,
           {
             reply_markup: {
               inline_keyboard: [[
-                { text: '🚀 Saytga kirish', url: loginUrl },
+                {
+                  text: isNew ? '📝 Ro\'yxatdan o\'tish' : '🚀 Saytga kirish',
+                  web_app: { url: appUrl },
+                },
               ]],
             },
           }
