@@ -20,27 +20,58 @@ const formatUser = (u) => ({
   balance:  u.balance,
 });
 
-// POST /api/auth/send-code  (SMS yo'q — faqat OK qaytaradi)
-router.post("/send-code", (req, res) => {
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ message: "Telefon raqam majburiy" });
-  res.json({ message: "Demo rejim: ixtiyoriy kod kiriting", phone, otpRequired: false });
+// POST /api/auth/send-code — Telegram orqali haqiqiy OTP yuborish
+router.post("/send-code", async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: "Telefon raqam majburiy" });
+
+    const user = await User.findOne({ phone });
+
+    // Foydalanuvchi topilmasa yoki tg_chat_id yo'q bo'lsa — botdan ro'yxatdan o'tish kerak
+    if (!user || !user.tg_chat_id) {
+      return res.status(400).json({
+        needBot: true,
+        message: "Bu raqam botda ro'yxatdan o'tmagan. @Requrilishbot da /start bosing",
+      });
+    }
+
+    const { createOtp } = require('../otpStore');
+    const { notifyUser } = require('../bot');
+
+    const code = createOtp(phone);
+    await notifyUser(user.tg_chat_id,
+      `🔐 *ReMarket kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`,
+      { parse_mode: 'Markdown' }
+    );
+
+    res.json({ sent: true, message: "Telegram'ga 6 xonali kod yuborildi" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// POST /api/auth/register
+// POST /api/auth/register — faqat bot orqali kelgan foydalanuvchilar uchun
 router.post("/register", async (req, res) => {
   try {
     const { name, phone, telegram, tgChatId } = req.body;
     if (!name || !phone)
       return res.status(400).json({ message: "Ism va telefon majburiy" });
 
-    // Avvaldan ro'yxatdan o'tgan bo'lsa — o'sha userni qaytaradi
     const exists = await User.findOne({ phone });
     let user = exists || (await User.create({ name, phone, telegram: telegram || "" }));
 
-    // Telegram chat_id ni saqlash
-    if (tgChatId && user.tg_chat_id !== tgChatId) {
+    if (tgChatId && String(user.tg_chat_id) !== String(tgChatId)) {
       user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+    }
+
+    // Telegram xabar — ro'yxatdan o'tish tasdiqi
+    if (user.tg_chat_id) {
+      const { notifyUser } = require('../bot');
+      await notifyUser(user.tg_chat_id,
+        `✅ *ReMarket'ga xush kelibsiz, ${user.name}!*\n\nRo'yxatdan o'tdingiz.\nTelefon: +998 ${user.phone}`,
+        { parse_mode: 'Markdown' }
+      );
     }
 
     const token = makeToken(user.id);
@@ -50,18 +81,22 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// POST /api/auth/login
+// POST /api/auth/login — OTP kodi bilan kirish
 router.post("/login", async (req, res) => {
   try {
-    const { phone, tgChatId } = req.body;
+    const { phone, code, tgChatId } = req.body;
     if (!phone) return res.status(400).json({ message: "Telefon majburiy" });
+    if (!code)  return res.status(400).json({ message: "Kod majburiy" });
 
     let user = await User.findOne({ phone });
     if (!user)
-      return res.status(404).json({ message: "Bu raqam topilmadi. Ro'yxatdan o'ting" });
+      return res.status(404).json({ message: "Bu raqam topilmadi. @Requrilishbot da ro'yxatdan o'ting" });
 
-    // Telegram chat_id ni yangilash
-    if (tgChatId && user.tg_chat_id !== tgChatId) {
+    const { verifyOtp } = require('../otpStore');
+    const result = verifyOtp(phone, code);
+    if (!result.ok) return res.status(400).json({ message: result.reason });
+
+    if (tgChatId && String(user.tg_chat_id) !== String(tgChatId)) {
       user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
     }
 
@@ -95,15 +130,13 @@ router.get("/me", authMiddleware, (req, res) => {
   res.json(formatUser(req.user));
 });
 
-// PUT /api/auth/me
+// PUT /api/auth/me — faqat ism va avatar o'zgartiriladi
 router.put("/me", authMiddleware, async (req, res) => {
   try {
-    const { name, phone, telegram, avatar } = req.body;
+    const { name, avatar } = req.body;
     const update = {};
-    if (name !== undefined)     update.name     = name;
-    if (phone !== undefined)    update.phone    = phone;
-    if (telegram !== undefined) update.telegram = telegram;
-    if (avatar !== undefined)   update.avatar   = avatar;
+    if (name   !== undefined) update.name   = name;
+    if (avatar !== undefined) update.avatar = avatar;
 
     const user = await User.findByIdAndUpdate(req.user.id, update);
     res.json(formatUser(user));
