@@ -16,6 +16,7 @@ const DEFAULT_NAME = "ReMarket Operator";
 function getOperatorCard() {
   const card = process.env.OPERATOR_CARD;
   const name = process.env.OPERATOR_NAME;
+  const telegram = process.env.OPERATOR_TELEGRAM || "@remarket_operator";
 
   const isDefaultCard = !card || card === DEFAULT_CARD;
 
@@ -34,6 +35,7 @@ function getOperatorCard() {
     ok: true,
     card: card || DEFAULT_CARD,
     name: name || DEFAULT_NAME,
+    telegram,
   };
 }
 
@@ -44,7 +46,7 @@ router.get("/info", authMiddleware, (_req, res) => {
     console.error("❌ PAYMENT XATO:", op.error);
     return res.status(500).json({ message: op.error });
   }
-  res.json({ card: op.card, name: op.name });
+  res.json({ card: op.card, name: op.name, telegram: op.telegram });
 });
 
 // POST /api/payments — to'lov boshlash (buyer)

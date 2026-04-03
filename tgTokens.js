@@ -1,7 +1,7 @@
 // Vaqtinchalik Telegram login tokenlari (in-memory, 1 martalik, 5 daqiqa)
 const tokens = new Map();
 
-const TTL = 5 * 60 * 1000; // 5 daqiqa
+const TTL = 30 * 24 * 60 * 60 * 1000; // 30 kun
 
 function createToken(userId) {
   // 8 belgili random token

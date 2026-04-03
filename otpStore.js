@@ -11,6 +11,9 @@ function createOtp(phone) {
 }
 
 function verifyOtp(phone, inputCode) {
+  // Demo rejim: OTP_STRICT=false bo'lsa har qanday kod qabul qilinadi
+  if (process.env.OTP_STRICT === "false") return { ok: true };
+
   const entry = store.get(phone);
   if (!entry) return { ok: false, reason: "Kod yuborilmagan yoki muddati o'tgan" };
   if (Date.now() > entry.expiresAt) {
