@@ -6,6 +6,7 @@ const productRoutes = require("./routes/products");
 const offerRoutes = require("./routes/offers");
 const paymentRoutes = require("./routes/payments");
 const walletRoutes = require("./routes/wallet");
+const operatorRoutes = require("./routes/operator");
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/wallet", walletRoutes);
+app.use("/api/operator", operatorRoutes);
 
 // ── Health check ─────────────────────────────────────────────────
 app.get("/", (_req, res) => {
