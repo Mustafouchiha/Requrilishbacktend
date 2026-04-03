@@ -10,9 +10,32 @@ function getBot() {
   if (!bot && process.env.TELEGRAM_BOT_TOKEN) {
     bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
-    bot.command('start', (ctx) => {
+    bot.command('start', async (ctx) => {
+      const tgChatId = ctx.from.id;
+      const firstName = ctx.from.first_name || '';
+
+      try {
+        // Allaqachon ro'yxatdan o'tgan bo'lsa — to'g'ridan login link yuborish
+        const existingUser = await User.findByTgChatId(tgChatId);
+        if (existingUser) {
+          const token = createToken(existingUser.id);
+          const appUrl = `${MINI_APP_URL}?tgToken=${token}`;
+          return ctx.reply(
+            `Salom, ${firstName}! ✅ Xush kelibsiz!\n\nQuyidagi tugmani bosib kiring:`,
+            {
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: '🚀 Mini Appga kirish', web_app: { url: appUrl } },
+                ]],
+              },
+            }
+          );
+        }
+      } catch { /* DB xatosida oddiy xush kelibsizga o'tadi */ }
+
+      // Yangi foydalanuvchi — telefon so'rash
       ctx.reply(
-        `Salom! 👋 ReMarket'ga xush kelibsiz!\n\nKirish yoki ro'yxatdan o'tish uchun telefon raqamingizni yuboring:`,
+        `Salom! 👋 ReMarket'ga xush kelibsiz!\n\nKirish uchun telefon raqamingizni yuboring:`,
         {
           reply_markup: {
             keyboard: [[
