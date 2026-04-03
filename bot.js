@@ -61,7 +61,7 @@ function getBot() {
         await ctx.reply(
           isNew
             ? `Salom, ${firstName}! 👋\n\nSiz yangi foydalanuvchisiz.\nQuyidagi tugmani bosing:`
-            : `Salom, ${firstName}! ✅\n\nQuyidagi tugmani bosib kiring.\n⏱ Havola 5 daqiqa amal qiladi:`,
+            : `Salom, ${firstName}! ✅\n\nQuyidagi tugmani bosib kiring:`,
           {
             reply_markup: {
               inline_keyboard: [[
