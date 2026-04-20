@@ -8,6 +8,11 @@ const router = express.Router();
 router.use(operatorAuth);
 
 const MAIN_OPERATOR_PHONE = "331350206";
+const depositInProgress = new Set();
+
+function isMainOp(user) {
+  return (user.phone || "").replace(/\D/g, "").slice(-9) === MAIN_OPERATOR_PHONE;
+}
 
 // ── Pending postlar (tasdiqlash navbati) ─────────────────────────
 router.get("/pending-posts", async (req, res) => {
@@ -248,15 +253,20 @@ router.delete("/users/:id", async (req, res) => {
 
 // ── Pul qo'shish ─────────────────────────────────────────────────
 router.post("/deposit", async (req, res) => {
-  try {
-    const { phone, amount } = req.body;
-    if (!phone || !amount) return res.status(400).json({ message: "phone va amount majburiy" });
-    const sum = Number(amount);
-    if (isNaN(sum) || sum <= 0) return res.status(400).json({ message: "Summa noto'g'ri" });
+  const { phone, amount } = req.body;
+  if (!phone || !amount) return res.status(400).json({ message: "phone va amount majburiy" });
+  const sum = Number(amount);
+  if (isNaN(sum) || sum <= 0) return res.status(400).json({ message: "Summa noto'g'ri" });
 
+  const phoneKey = phone.replace(/\D/g, "").slice(-9);
+  if (depositInProgress.has(phoneKey)) {
+    return res.status(429).json({ message: "Iltimos kuting, avvalgi amal bajarilmoqda" });
+  }
+  depositInProgress.add(phoneKey);
+
+  try {
     const { rows: found } = await query(
-      "SELECT * FROM users WHERE phone = $1 LIMIT 1",
-      [phone.replace(/\D/g, "").slice(-9)]
+      "SELECT * FROM users WHERE phone = $1 LIMIT 1", [phoneKey]
     );
     if (!found[0]) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
 
@@ -274,6 +284,102 @@ router.post("/deposit", async (req, res) => {
     }
 
     res.json({ message: `${sum.toLocaleString()} so'm qo'shildi`, user: rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  } finally {
+    depositInProgress.delete(phoneKey);
+  }
+});
+
+// ── Balansdan pul ayirish ─────────────────────────────────────────
+router.post("/withdraw", async (req, res) => {
+  try {
+    const { phone, amount } = req.body;
+    if (!phone || !amount) return res.status(400).json({ message: "phone va amount majburiy" });
+    const sum = Number(amount);
+    if (isNaN(sum) || sum <= 0) return res.status(400).json({ message: "Summa noto'g'ri" });
+
+    const phoneKey = phone.replace(/\D/g, "").slice(-9);
+    const { rows: found } = await query(
+      "SELECT * FROM users WHERE phone = $1 LIMIT 1", [phoneKey]
+    );
+    if (!found[0]) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
+    if (Number(found[0].balance) < sum) {
+      return res.status(400).json({ message: "Balans yetarli emas" });
+    }
+
+    const { rows } = await query(
+      "UPDATE users SET balance = balance - $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, phone, balance",
+      [sum, found[0].id]
+    );
+
+    if (found[0].tg_chat_id) {
+      const { notifyUser } = require("../bot");
+      await notifyUser(found[0].tg_chat_id,
+        `💸 *Hisobingizdan pul ayirildi*\n\nSumma: *${sum.toLocaleString()} so'm*\nQolgan balans: *${Number(rows[0].balance).toLocaleString()} so'm*`,
+        { parse_mode: "Markdown" }
+      ).catch(() => {});
+    }
+
+    res.json({ message: `${sum.toLocaleString()} so'm ayirildi`, user: rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Operatorlar ro'yxati ─────────────────────────────────────────
+router.get("/operators", async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, name, phone, telegram, role, joined FROM users
+       WHERE role = 'operator' OR phone = $1 ORDER BY joined ASC`,
+      [MAIN_OPERATOR_PHONE]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Operator qo'shish (faqat bosh operator) ──────────────────────
+router.post("/operators", async (req, res) => {
+  if (!isMainOp(req.user)) {
+    return res.status(403).json({ message: "Faqat bosh operator operator qo'sha oladi" });
+  }
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: "Telefon majburiy" });
+    const phoneKey = phone.replace(/\D/g, "").slice(-9);
+    if (phoneKey === MAIN_OPERATOR_PHONE) {
+      return res.status(400).json({ message: "Bosh operator allaqachon operator" });
+    }
+    const { rows } = await query("SELECT * FROM users WHERE phone = $1 LIMIT 1", [phoneKey]);
+    if (!rows[0]) return res.status(404).json({ message: "Bu raqamli foydalanuvchi topilmadi" });
+
+    const { rows: updated } = await query(
+      "UPDATE users SET role = 'operator', updated_at = NOW() WHERE id = $1 RETURNING id, name, phone, role",
+      [rows[0].id]
+    );
+    res.json({ message: "Operator qo'shildi", user: updated[0] });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Operatorni o'chirish (faqat bosh operator) ───────────────────
+router.delete("/operators/:id", async (req, res) => {
+  if (!isMainOp(req.user)) {
+    return res.status(403).json({ message: "Faqat bosh operator operatorni o'chira oladi" });
+  }
+  try {
+    const { rows } = await query("SELECT phone FROM users WHERE id = $1 LIMIT 1", [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi" });
+    const phone = rows[0].phone?.replace(/\D/g, "").slice(-9);
+    if (phone === MAIN_OPERATOR_PHONE) {
+      return res.status(403).json({ message: "Bosh operatorni o'chirib bo'lmaydi" });
+    }
+    await query("UPDATE users SET role = 'user', updated_at = NOW() WHERE id = $1", [req.params.id]);
+    res.json({ message: "Operator o'chirildi" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -10,13 +10,13 @@ function paymentEnabled() {
   return false;
 }
 
-const DEFAULT_CARD = "8600 0000 0000 0000";
-const DEFAULT_NAME = "ReMarket Operator";
+const DEFAULT_CARD = "9860160619731286";
+const DEFAULT_NAME = "Ismoiljonov Mustafo";
 
 function getOperatorCard() {
   const card = process.env.OPERATOR_CARD;
   const name = process.env.OPERATOR_NAME;
-  const telegram = process.env.OPERATOR_TELEGRAM || "@remarket_operator";
+  const telegram = process.env.OPERATOR_TELEGRAM || "@Requrilish_admin";
 
   const isDefaultCard = !card || card === DEFAULT_CARD;
 

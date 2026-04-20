@@ -18,6 +18,7 @@ const formatUser = (u) => ({
   avatar:   u.avatar,
   joined:   u.joined,
   balance:  u.balance,
+  role:     u.role || "user",
 });
 
 // POST /api/auth/send-code — Telegram orqali haqiqiy OTP yuborish
@@ -41,7 +42,7 @@ router.post("/send-code", async (req, res) => {
 
     const code = createOtp(phone);
     await notifyUser(user.tg_chat_id,
-      `🔐 *ReMarket kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`,
+      `🔐 *ReQurilish kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`,
       { parse_mode: 'Markdown' }
     );
 
@@ -65,13 +66,13 @@ router.post("/register", async (req, res) => {
       user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
     }
 
-    // Telegram xabar — ro'yxatdan o'tish tasdiqi
-    if (user.tg_chat_id) {
+    // Telegram xabar — yangi foydalanuvchi uchungina
+    if (!exists && user.tg_chat_id) {
       const { notifyUser } = require('../bot');
       await notifyUser(user.tg_chat_id,
-        `✅ *ReMarket'ga xush kelibsiz, ${user.name}!*\n\nRo'yxatdan o'tdingiz.\nTelefon: +998 ${user.phone}`,
+        `✅ *ReQurilish'ga xush kelibsiz, ${user.name}!*\n\nRo'yxatdan o'tdingiz.\nTelefon: +998 ${user.phone}`,
         { parse_mode: 'Markdown' }
-      );
+      ).catch(() => {});
     }
 
     const token = makeToken(user.id);
