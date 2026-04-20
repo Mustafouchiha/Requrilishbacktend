@@ -81,17 +81,26 @@ router.post("/", authMiddleware, async (req, res) => {
       status: "pending_approval",
     });
 
-    // Operatorga Telegram xabari
-    try {
-      const { notifyOperator } = require("../bot");
-      await notifyOperator(
-        `📋 *Yangi e'lon tekshiruv kutmoqda!*\n\n` +
-        `📦 Mahsulot: ${name}\n` +
-        `💰 Narx: ${Number(price).toLocaleString()} so'm\n` +
-        `📍 Manzil: ${viloyat}${tuman ? ", " + tuman : ""}\n` +
-        `👤 Sotuvchi: ${req.user.name} (${req.user.phone})`
-      );
-    } catch { /* bot xatosi asosiy jarayonni to'xtatmasin */ }
+    const { notifyUser, notifyOperator } = require("../bot");
+
+    // Foydalanuvchiga: post tekshirilmoqda
+    if (req.user.tg_chat_id) {
+      notifyUser(req.user.tg_chat_id,
+        `⏳ *E'loningiz qabul qilindi!*\n\n` +
+        `📦 ${name}\n\n` +
+        `E'loningiz tekshirilmoqda (30-60 daqiqa). Operator tasdiqlasa, to'lov yo'riqnomasi yuboriladi.`,
+        { parse_mode: "Markdown" }
+      ).catch(() => {});
+    }
+
+    // Operatorga xabar
+    notifyOperator(
+      `📋 *Yangi e'lon tekshiruv kutmoqda!*\n\n` +
+      `📦 Mahsulot: ${name}\n` +
+      `💰 Narx: ${Number(price).toLocaleString()} so'm\n` +
+      `📍 Manzil: ${viloyat}${tuman ? ", " + tuman : ""}\n` +
+      `👤 Sotuvchi: ${req.user.name} (${req.user.phone})`
+    ).catch(() => {});
 
     const parsedPhotos = product.photos ? JSON.parse(product.photos) : (product.photo ? [product.photo] : []);
 

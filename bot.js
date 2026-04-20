@@ -67,14 +67,14 @@ function getBot() {
         } else {
           const tgUsername = ctx.from.username ? `@${ctx.from.username}` : "";
           const params = new URLSearchParams({
-            phone,
-            tgChatId: String(tgChatId),
-            name: firstName,
-            telegram: tgUsername,
-            register: "1",
+            phone, tgChatId: String(tgChatId),
+            name: firstName, telegram: tgUsername, register: "1",
           });
           appUrl = `${MINI_APP_URL()}?${params.toString()}`;
         }
+
+        // Avval klaviaturani yashiramiz
+        await ctx.reply("✅", { reply_markup: { remove_keyboard: true } });
 
         const isNew = !user;
         await ctx.reply(
