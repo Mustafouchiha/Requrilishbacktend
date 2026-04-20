@@ -13,8 +13,8 @@ const app = express();
 // ── CORS ──────────────────────────────────────────────────────────
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  "https://requrilish.vercel.app",
   "https://frontend-353d.vercel.app",
-  "https://re-market-frontend.vercel.app",
 ].filter(Boolean);
 
 const isLocalhost  = (o) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);

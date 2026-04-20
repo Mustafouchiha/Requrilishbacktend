@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: remarket-api
+    name: requrilish-api
     env: node
     buildCommand: npm install --omit=dev
     startCommand: npm start
@@ -21,4 +21,6 @@ services:
       - key: OTP_STRICT
         value: false
       - key: CLIENT_URL
-        value: https://frontend-353d.vercel.app
+        value: https://requrilish.vercel.app
+      - key: MINI_APP_URL
+        value: https://requrilish.vercel.app/
