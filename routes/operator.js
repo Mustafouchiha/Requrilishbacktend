@@ -475,6 +475,84 @@ router.put("/payments/:offerId/confirm", async (req, res) => {
   }
 });
 
+// ── App orqali kelmagan to'lovlar (pending_payment, payment yo'q) ─
+router.get("/pending-offers", async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT o.id AS offer_id, o.status AS offer_status, o.created_at,
+              p.id AS product_id, p.name AS product_name, p.price AS product_price,
+              b.name AS buyer_name, b.phone AS buyer_phone,
+              s.name AS seller_name, s.phone AS seller_phone
+       FROM offers o
+       LEFT JOIN products p ON p.id = o.product_id
+       LEFT JOIN users b ON b.id = o.buyer_id
+       LEFT JOIN users s ON s.id = o.seller_id
+       LEFT JOIN payments pay ON pay.offer_id = o.id
+       WHERE p.status = 'pending_payment'
+         AND o.status = 'pending'
+         AND pay.id IS NULL
+       ORDER BY o.created_at DESC LIMIT 50`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Qo'lda to'lovni tasdiqlash (app tashqarisida to'langan) ──────
+router.post("/manual-confirm/:offerId", async (req, res) => {
+  const { offerId } = req.params;
+  const { rowCount } = await query(
+    "INSERT INTO payment_locks (offer_id) VALUES ($1) ON CONFLICT DO NOTHING",
+    [offerId]
+  );
+  if (rowCount === 0) return res.status(400).json({ message: "Allaqachon qayta ishlanmoqda" });
+
+  try {
+    const { rows: offerRows } = await query(
+      `SELECT o.*, p.name AS product_name, p.price AS product_price,
+              b.name AS buyer_name, b.phone AS buyer_phone, b.telegram AS buyer_tg, b.tg_chat_id AS buyer_chat,
+              s.name AS seller_name, s.phone AS seller_phone, s.telegram AS seller_tg, s.tg_chat_id AS seller_chat
+       FROM offers o
+       LEFT JOIN products p ON p.id = o.product_id
+       LEFT JOIN users b ON b.id = o.buyer_id
+       LEFT JOIN users s ON s.id = o.seller_id
+       WHERE o.id = $1 LIMIT 1`,
+      [offerId]
+    );
+    if (!offerRows[0]) return res.status(404).json({ message: "Offer topilmadi" });
+    const offer = offerRows[0];
+    if (offer.status === "paid") return res.status(400).json({ message: "Allaqachon to'langan" });
+
+    const opCard = process.env.OPERATOR_CARD || "9860160619731286";
+    await query(
+      `INSERT INTO payments (offer_id, buyer_id, seller_id, product_id, amount, status, card_to, confirmed_at)
+       VALUES ($1,$2,$3,$4,$5,'confirmed',$6,NOW())
+       ON CONFLICT (offer_id) DO UPDATE SET status='confirmed', confirmed_at=NOW(), updated_at=NOW()`,
+      [offerId, offer.buyer_id, offer.seller_id, offer.product_id, offer.product_price || 0, opCard]
+    );
+    await query("UPDATE offers SET status='paid', updated_at=NOW() WHERE id=$1", [offerId]);
+    if (offer.product_id) await Product.setStatus(offer.product_id, "deleted");
+
+    const { notifyUser } = require("../bot");
+    if (offer.buyer_chat) {
+      await notifyUser(offer.buyer_chat,
+        `✅ *To'lovingiz tasdiqlandi!*\n\n📦 ${offer.product_name}\n\n📞 Sotuvchi:\n👤 ${offer.seller_name||"—"}\n📱 ${offer.seller_phone||"—"}\n✈️ ${offer.seller_tg||"—"}`,
+        { parse_mode: "Markdown" }
+      ).catch(() => {});
+    }
+    if (offer.seller_chat) {
+      await notifyUser(offer.seller_chat,
+        `💸 *Bitim yakunlandi!*\n\n📦 ${offer.product_name}\n\n📞 Xaridor:\n👤 ${offer.buyer_name||"—"}\n📱 ${offer.buyer_phone||"—"}\n✈️ ${offer.buyer_tg||"—"}`,
+        { parse_mode: "Markdown" }
+      ).catch(() => {});
+    }
+    res.json({ message: "Qo'lda tasdiqlandi" });
+  } finally {
+    await query("DELETE FROM payment_locks WHERE offer_id=$1", [offerId]).catch(() => {});
+  }
+});
+
 // ── Operator to'lovlari (pending) ───────────────────────────────
 router.get("/payments", async (req, res) => {
   try {
