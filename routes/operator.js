@@ -213,7 +213,10 @@ router.put("/users/:id/block", async (req, res) => {
     if (phone === MAIN_OPERATOR_PHONE) {
       return res.status(403).json({ message: "Bosh operatorni bloklab bo'lmaydi" });
     }
-    await query("UPDATE users SET is_blocked = TRUE, updated_at = NOW() WHERE id = $1", [req.params.id]);
+    await query(
+      "UPDATE users SET is_blocked = TRUE WHERE id = $1",
+      [req.params.id]
+    );
     res.json({ message: "Bloklandi" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -223,7 +226,7 @@ router.put("/users/:id/block", async (req, res) => {
 // ── Foydalanuvchi blokini ochish ─────────────────────────────────
 router.put("/users/:id/unblock", async (req, res) => {
   try {
-    await query("UPDATE users SET is_blocked = FALSE, updated_at = NOW() WHERE id = $1", [req.params.id]);
+    await query("UPDATE users SET is_blocked = FALSE WHERE id = $1", [req.params.id]);
     res.json({ message: "Blok ochildi" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -271,7 +274,7 @@ router.post("/deposit", async (req, res) => {
     if (!found[0]) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
 
     const { rows } = await query(
-      "UPDATE users SET balance = balance + $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, phone, balance",
+      "UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING id, name, phone, balance",
       [sum, found[0].id]
     );
 
@@ -309,7 +312,7 @@ router.post("/withdraw", async (req, res) => {
     }
 
     const { rows } = await query(
-      "UPDATE users SET balance = balance - $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, phone, balance",
+      "UPDATE users SET balance = balance - $1 WHERE id = $2 RETURNING id, name, phone, balance",
       [sum, found[0].id]
     );
 
@@ -347,18 +350,35 @@ router.post("/operators", async (req, res) => {
     return res.status(403).json({ message: "Faqat bosh operator operator qo'sha oladi" });
   }
   try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ message: "Telefon majburiy" });
-    const phoneKey = phone.replace(/\D/g, "").slice(-9);
+    const { identifier, phone } = req.body;
+    const search = (identifier || phone || "").trim();
+    if (!search) return res.status(400).json({ message: "Telefon yoki ism majburiy" });
+
+    // Try by phone first
+    const phoneKey = search.replace(/\D/g, "").slice(-9);
     if (phoneKey === MAIN_OPERATOR_PHONE) {
       return res.status(400).json({ message: "Bosh operator allaqachon operator" });
     }
-    const { rows } = await query("SELECT * FROM users WHERE phone = $1 LIMIT 1", [phoneKey]);
-    if (!rows[0]) return res.status(404).json({ message: "Bu raqamli foydalanuvchi topilmadi" });
+    let targetUser = null;
+    if (phoneKey.length === 9) {
+      const { rows: byPhone } = await query(
+        "SELECT * FROM users WHERE phone = $1 LIMIT 1", [phoneKey]
+      );
+      targetUser = byPhone[0] || null;
+    }
+    // If not found by phone, try by name
+    if (!targetUser) {
+      const { rows: byName } = await query(
+        "SELECT * FROM users WHERE name ILIKE $1 ORDER BY joined DESC LIMIT 1",
+        [`%${search}%`]
+      );
+      targetUser = byName[0] || null;
+    }
+    if (!targetUser) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
 
     const { rows: updated } = await query(
-      "UPDATE users SET role = 'operator', updated_at = NOW() WHERE id = $1 RETURNING id, name, phone, role",
-      [rows[0].id]
+      "UPDATE users SET role = 'operator' WHERE id = $1 RETURNING id, name, phone, role",
+      [targetUser.id]
     );
     res.json({ message: "Operator qo'shildi", user: updated[0] });
   } catch (err) {
@@ -378,7 +398,7 @@ router.delete("/operators/:id", async (req, res) => {
     if (phone === MAIN_OPERATOR_PHONE) {
       return res.status(403).json({ message: "Bosh operatorni o'chirib bo'lmaydi" });
     }
-    await query("UPDATE users SET role = 'user', updated_at = NOW() WHERE id = $1", [req.params.id]);
+    await query("UPDATE users SET role = 'user' WHERE id = $1", [req.params.id]);
     res.json({ message: "Operator o'chirildi" });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -60,6 +60,13 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "Ism va telefon majburiy" });
 
     const exists = await User.findOne({ phone });
+    // New users must come through Telegram bot (must have tgChatId)
+    if (!exists && !tgChatId) {
+      return res.status(400).json({
+        needBot: true,
+        message: "Ro'yxatdan o'tish uchun avval @Requrilishbot da /start bosing va telefon raqamingizni yuboring",
+      });
+    }
     let user = exists || (await User.create({ name, phone, telegram: telegram || "" }));
 
     if (tgChatId && String(user.tg_chat_id) !== String(tgChatId)) {
