@@ -126,6 +126,11 @@ async function initTables(p) {
       END IF;
     END $$;
     DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='updated_at') THEN
+        ALTER TABLE products ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
+      END IF;
+    END $$;
+    DO $$ BEGIN
       ALTER TABLE products ALTER COLUMN owner_id DROP NOT NULL;
     EXCEPTION WHEN others THEN NULL;
     END $$;
