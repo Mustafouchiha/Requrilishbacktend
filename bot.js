@@ -18,7 +18,7 @@ function getBot() {
       try {
         const existingUser = await User.findByTgChatId(tgChatId);
         if (existingUser) {
-          const token = createToken(existingUser.id);
+          const token = await createToken(existingUser.id);
           const appUrl = `${MINI_APP_URL()}?tgToken=${token}`;
           return ctx.reply(
             `Salom, ${firstName}! ✅ Xush kelibsiz!\n\nQuyidagi tugmani bosib kiring:`,
@@ -62,7 +62,7 @@ function getBot() {
           if (String(user.tg_chat_id) !== String(tgChatId)) {
             user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
           }
-          const token = createToken(user.id);
+          const token = await createToken(user.id);
           appUrl = `${MINI_APP_URL()}?tgToken=${token}`;
         } else {
           const tgUsername = ctx.from.username ? `@${ctx.from.username}` : "";

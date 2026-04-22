@@ -167,6 +167,13 @@ async function initTables(p) {
       locked_at TIMESTAMPTZ  DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS tg_tokens (
+      token      VARCHAR(20)  PRIMARY KEY,
+      user_id    UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ  NOT NULL,
+      created_at TIMESTAMPTZ  DEFAULT NOW()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_products_status     ON products (status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_products_owner      ON products (owner_id);
     CREATE INDEX IF NOT EXISTS idx_products_category   ON products (category);

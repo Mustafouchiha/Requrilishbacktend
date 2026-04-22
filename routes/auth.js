@@ -73,10 +73,18 @@ router.post("/register", async (req, res) => {
     const phoneKey = phone.replace(/\D/g, "").slice(-9);
     const exists = await User.findOne({ phone: phoneKey });
 
-    // 2. Phone already registered → just log in (update tgChatId if needed)
+    // 2. Phone already registered
     if (exists) {
+      // If this phone is already linked to a DIFFERENT Telegram account → deny
+      if (exists.tg_chat_id && tgChatId && String(exists.tg_chat_id) !== String(tgChatId)) {
+        return res.status(403).json({
+          needBot: true,
+          message: "Bu telefon raqam boshqa Telegram akkauntiga bog'liq. Faqat o'z raqamingizdan foydalaning.",
+        });
+      }
       let user = exists;
-      if (tgChatId && String(user.tg_chat_id) !== String(tgChatId)) {
+      // Link tgChatId if not yet set
+      if (tgChatId && !user.tg_chat_id) {
         user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
       }
       const token = makeToken(user.id);
@@ -138,9 +146,9 @@ router.post("/login", async (req, res) => {
 router.get("/tg-token/:token", async (req, res) => {
   try {
     const { verifyToken } = require('../tgTokens');
-    const data = verifyToken(req.params.token);
+    const data = await verifyToken(req.params.token);
     if (!data) {
-      return res.status(400).json({ message: "Token yaroqsiz yoki muddati o'tgan (5 daqiqa)" });
+      return res.status(400).json({ message: "Token yaroqsiz yoki muddati o'tgan" });
     }
     const user = await User.findById(data.userId);
     if (!user) return res.status(404).json({ message: "Foydalanuvchi topilmadi" });

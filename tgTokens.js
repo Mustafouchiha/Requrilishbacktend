@@ -1,33 +1,38 @@
-// Vaqtinchalik Telegram login tokenlari (in-memory, 1 martalik, 5 daqiqa)
-const tokens = new Map();
+const { query } = require("./db");
 
-const TTL = 30 * 24 * 60 * 60 * 1000; // 30 kun
+const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 kun
 
-function createToken(userId) {
-  // 8 belgili random token
-  const token = Math.random().toString(36).slice(2, 6).toUpperCase() +
-                Math.random().toString(36).slice(2, 6).toUpperCase();
-  tokens.set(token, { userId, expiresAt: Date.now() + TTL });
+function makeToken() {
+  return (
+    Math.random().toString(36).slice(2, 6).toUpperCase() +
+    Math.random().toString(36).slice(2, 6).toUpperCase()
+  );
+}
+
+async function createToken(userId) {
+  const token = makeToken();
+  const expiresAt = new Date(Date.now() + TTL_MS);
+  await query(
+    `INSERT INTO tg_tokens (token, user_id, expires_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (token) DO UPDATE SET user_id=$2, expires_at=$3`,
+    [token, userId, expiresAt]
+  );
   return token;
 }
 
-function verifyToken(token) {
-  const data = tokens.get(token);
-  if (!data) return null;
-  if (Date.now() > data.expiresAt) {
-    tokens.delete(token);
-    return null;
-  }
-  tokens.delete(token); // 1 martalik
-  return data;
+async function verifyToken(token) {
+  const { rows } = await query(
+    `DELETE FROM tg_tokens WHERE token=$1 AND expires_at > NOW() RETURNING user_id`,
+    [token]
+  );
+  if (!rows[0]) return null;
+  return { userId: rows[0].user_id };
 }
 
-// Eskirgan tokenlarni tozalash (har 10 daqiqada)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of tokens.entries()) {
-    if (now > val.expiresAt) tokens.delete(key);
-  }
-}, 10 * 60 * 1000);
+// Eskirgan tokenlarni tozalash (har soatda)
+setInterval(async () => {
+  await query("DELETE FROM tg_tokens WHERE expires_at <= NOW()").catch(() => {});
+}, 60 * 60 * 1000);
 
 module.exports = { createToken, verifyToken };
