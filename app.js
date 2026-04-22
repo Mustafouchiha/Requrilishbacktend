@@ -6,14 +6,15 @@ const productRoutes = require("./routes/products");
 const offerRoutes = require("./routes/offers");
 const paymentRoutes = require("./routes/payments");
 const walletRoutes = require("./routes/wallet");
+const operatorRoutes = require("./routes/operator");
 
 const app = express();
 
 // ── CORS ──────────────────────────────────────────────────────────
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  "https://requrilish.vercel.app",
   "https://frontend-353d.vercel.app",
-  "https://re-market-frontend.vercel.app",
 ].filter(Boolean);
 
 const isLocalhost  = (o) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);
@@ -52,6 +53,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/wallet", walletRoutes);
+app.use("/api/operator", operatorRoutes);
 
 // ── Health check ─────────────────────────────────────────────────
 app.get("/", (_req, res) => {

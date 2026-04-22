@@ -9,6 +9,14 @@ const User = {
     return rows[0] || null;
   },
 
+  async findByTgChatId(tgChatId) {
+    const { rows } = await query(
+      "SELECT * FROM users WHERE tg_chat_id = $1 LIMIT 1",
+      [tgChatId]
+    );
+    return rows[0] || null;
+  },
+
   async findById(id) {
     const { rows } = await query(
       "SELECT * FROM users WHERE id = $1 LIMIT 1",

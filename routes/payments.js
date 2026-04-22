@@ -10,13 +10,13 @@ function paymentEnabled() {
   return false;
 }
 
-const DEFAULT_CARD = "8600 0000 0000 0000";
-const DEFAULT_NAME = "ReMarket Operator";
+const DEFAULT_CARD = "9860160619731286";
+const DEFAULT_NAME = "Ismoiljonov Mustafo";
 
 function getOperatorCard() {
   const card = process.env.OPERATOR_CARD;
   const name = process.env.OPERATOR_NAME;
-  const telegram = process.env.OPERATOR_TELEGRAM || "@remarket_operator";
+  const telegram = process.env.OPERATOR_TELEGRAM || "@Requrilish_admin";
 
   const isDefaultCard = !card || card === DEFAULT_CARD;
 
@@ -121,6 +121,72 @@ router.put("/:offerId/confirm", authMiddleware, async (req, res) => {
     res.json({ message: "To'lov tasdiqlandi ✅", payment: formatPayment(payment) });
   } catch (err) {
     console.error("❌ Payment confirm xatosi:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/payments/balance-pay — balansdan 5% xizmat haqi to'lash (seller)
+router.post("/balance-pay", authMiddleware, async (req, res) => {
+  try {
+    const { offerId } = req.body;
+    if (!offerId) return res.status(400).json({ message: "offerId majburiy" });
+
+    const { query } = require("../db");
+    const Product = require("../models/Product");
+
+    const { rows: offerRows } = await query(
+      `SELECT o.*, p.name AS product_name, p.price AS product_price,
+              b.name AS buyer_name, b.phone AS buyer_phone, b.telegram AS buyer_tg, b.tg_chat_id AS buyer_chat
+       FROM offers o
+       LEFT JOIN products p ON p.id = o.product_id
+       LEFT JOIN users b ON b.id = o.buyer_id
+       WHERE o.id = $1 LIMIT 1`,
+      [offerId]
+    );
+    const offer = offerRows[0];
+    if (!offer) return res.status(404).json({ message: "Offer topilmadi" });
+    if (String(offer.seller_id) !== String(req.user.id))
+      return res.status(403).json({ message: "Ruxsat yo'q" });
+    if (offer.status === "paid")
+      return res.status(400).json({ message: "Allaqachon to'langan" });
+
+    const fee = Math.max(1, Math.round(Number(offer.product_price) * 0.05));
+    const balance = Number(req.user.balance);
+    if (balance < fee) {
+      return res.status(400).json({
+        message: `Balansingiz yetarli emas. Kerak: ${fee.toLocaleString()} so'm, mavjud: ${balance.toLocaleString()} so'm`,
+      });
+    }
+
+    const { rowCount } = await query(
+      "INSERT INTO payment_locks (offer_id) VALUES ($1) ON CONFLICT DO NOTHING", [offerId]
+    );
+    if (rowCount === 0)
+      return res.status(400).json({ message: "Allaqachon qayta ishlanmoqda" });
+
+    try {
+      await query("UPDATE users SET balance = balance - $1 WHERE id = $2", [fee, req.user.id]);
+      await query(
+        `INSERT INTO payments (offer_id, buyer_id, seller_id, product_id, amount, status, card_to, note, confirmed_at)
+         VALUES ($1,$2,$3,$4,$5,'confirmed','balance','Balansdan to''landi',NOW())
+         ON CONFLICT (offer_id) DO UPDATE SET status='confirmed', confirmed_at=NOW()`,
+        [offerId, offer.buyer_id, offer.seller_id, offer.product_id, fee]
+      );
+      await query("UPDATE offers SET status='paid' WHERE id=$1", [offerId]);
+      if (offer.product_id) await Product.setStatus(offer.product_id, "deleted");
+
+      const { notifyUser } = require("../bot");
+      if (offer.buyer_chat) {
+        await notifyUser(offer.buyer_chat,
+          `✅ *Bitim yakunlandi!*\n\n📦 ${offer.product_name}\n\n📞 Sotuvchi:\n👤 ${req.user.name}\n📱 +998 ${req.user.phone}\n✈️ ${req.user.telegram || "—"}`,
+          { parse_mode: "Markdown" }
+        ).catch(() => {});
+      }
+      res.json({ message: "To'lov muvaffaqiyatli amalga oshirildi ✅" });
+    } finally {
+      await query("DELETE FROM payment_locks WHERE offer_id=$1", [offerId]).catch(() => {});
+    }
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });

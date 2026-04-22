@@ -18,6 +18,7 @@ const formatUser = (u) => ({
   avatar:   u.avatar,
   joined:   u.joined,
   balance:  u.balance,
+  role:     u.role || "user",
 });
 
 // POST /api/auth/send-code — Telegram orqali haqiqiy OTP yuborish
@@ -41,7 +42,7 @@ router.post("/send-code", async (req, res) => {
 
     const code = createOtp(phone);
     await notifyUser(user.tg_chat_id,
-      `🔐 *ReMarket kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`,
+      `🔐 *ReQurilish kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`,
       { parse_mode: 'Markdown' }
     );
 
@@ -55,24 +56,50 @@ router.post("/send-code", async (req, res) => {
 router.post("/register", async (req, res) => {
   try {
     const { name, phone, telegram, tgChatId } = req.body;
+
+    // 1. If tgChatId provided, check if this Telegram account already has a user
+    //    → return THAT user's token (prevents fake phone registrations)
+    if (tgChatId) {
+      const byTg = await User.findByTgChatId(Number(tgChatId));
+      if (byTg) {
+        const token = makeToken(byTg.id);
+        return res.json({ token, user: formatUser(byTg) });
+      }
+    }
+
     if (!name || !phone)
       return res.status(400).json({ message: "Ism va telefon majburiy" });
 
-    const exists = await User.findOne({ phone });
-    let user = exists || (await User.create({ name, phone, telegram: telegram || "" }));
+    const phoneKey = phone.replace(/\D/g, "").slice(-9);
+    const exists = await User.findOne({ phone: phoneKey });
 
-    if (tgChatId && String(user.tg_chat_id) !== String(tgChatId)) {
-      user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+    // 2. Phone already registered → just log in (update tgChatId if needed)
+    if (exists) {
+      let user = exists;
+      if (tgChatId && String(user.tg_chat_id) !== String(tgChatId)) {
+        user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+      }
+      const token = makeToken(user.id);
+      return res.json({ token, user: formatUser(user) });
     }
 
-    // Telegram xabar — ro'yxatdan o'tish tasdiqi
-    if (user.tg_chat_id) {
-      const { notifyUser } = require('../bot');
-      await notifyUser(user.tg_chat_id,
-        `✅ *ReMarket'ga xush kelibsiz, ${user.name}!*\n\nRo'yxatdan o'tdingiz.\nTelefon: +998 ${user.phone}`,
-        { parse_mode: 'Markdown' }
-      );
+    // 3. New user — must come through bot (tgChatId required)
+    if (!tgChatId) {
+      return res.status(400).json({
+        needBot: true,
+        message: "Ro'yxatdan o'tish uchun avval @Requrilishbot da /start bosing va telefon raqamingizni yuboring",
+      });
     }
+
+    // 4. Create new user (from bot redirect)
+    let user = await User.create({ name, phone: phoneKey, telegram: telegram || "" });
+    user = await User.findByIdAndUpdate(user.id, { tg_chat_id: Number(tgChatId) }) || user;
+
+    const { notifyUser } = require('../bot');
+    await notifyUser(user.tg_chat_id,
+      `✅ *ReQurilish'ga xush kelibsiz, ${user.name}!*\n\nRo'yxatdan o'tdingiz.\nTelefon: +998 ${user.phone}`,
+      { parse_mode: 'Markdown' }
+    ).catch(() => {});
 
     const token = makeToken(user.id);
     res.status(201).json({ token, user: formatUser(user) });
