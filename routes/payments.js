@@ -169,7 +169,7 @@ router.post("/balance-pay", authMiddleware, async (req, res) => {
       await query(
         `INSERT INTO payments (offer_id, buyer_id, seller_id, product_id, amount, status, card_to, note, confirmed_at)
          VALUES ($1,$2,$3,$4,$5,'confirmed','balance','Balansdan to''landi',NOW())
-         ON CONFLICT (offer_id) DO UPDATE SET status='confirmed', confirmed_at=NOW()`,
+         ON CONFLICT (offer_id) DO UPDATE SET status='confirmed', confirmed_at=NOW(), updated_at=NOW()`,
         [offerId, offer.buyer_id, offer.seller_id, offer.product_id, fee]
       );
       await query("UPDATE offers SET status='paid' WHERE id=$1", [offerId]);
