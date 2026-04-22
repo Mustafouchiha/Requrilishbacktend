@@ -103,10 +103,10 @@ function getBot() {
 }
 
 async function notifyUser(tgChatId, text, extra = {}) {
-  const b = getBot();
-  if (!b || !tgChatId) return;
+  if (!tgChatId) return;
   try {
-    await b.telegram.sendMessage(tgChatId, text, { parse_mode: "Markdown", ...extra });
+    const { sendTg } = require('./utils/telegram');
+    await sendTg(tgChatId, text, extra);
   } catch (e) {
     console.error("Bot xabar yuborishda xato:", e.message);
   }

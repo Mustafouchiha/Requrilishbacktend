@@ -67,46 +67,40 @@ router.post("/tg-init", async (req, res) => {
   }
 });
 
-// POST /api/auth/send-code — Telegram orqali haqiqiy OTP yuborish
+// POST /api/auth/send-code — Telegram orqali OTP yuborish
 router.post("/send-code", async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ message: "Telefon raqam majburiy" });
+    const rawPhone = (req.body.phone || "").replace(/\D/g, "").slice(-9);
+    if (!rawPhone || rawPhone.length < 9)
+      return res.status(400).json({ message: "Telefon raqam noto'g'ri" });
 
-    const user = await User.findOne({ phone });
+    const user = await User.findOne({ phone: rawPhone });
 
     if (!user || !user.tg_chat_id) {
       return res.status(400).json({
         needBot: true,
-        message: "Bu raqam botda ro'yxatdan o'tmagan. @Requrilishbot da /start bosing",
-      });
-    }
-
-    const { getBot } = require('../bot');
-    const bot = getBot();
-    if (!bot) {
-      return res.status(503).json({
-        message: "Bot hozircha ishlamayapti. Iltimos, keyinroq urinib ko'ring yoki @Requrilishbot da /start bosing",
+        message: "Bu raqam ro'yxatdan o'tmagan. @Requrilishbot da /start bosing va telefon yuboring.",
       });
     }
 
     const { createOtp } = require('../otpStore');
-    const code = createOtp(phone);
+    const { sendTg }    = require('../utils/telegram');
+
+    const code = createOtp(rawPhone);
 
     try {
-      await bot.telegram.sendMessage(
+      await sendTg(
         user.tg_chat_id,
-        `🔐 *ReQurilish kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`,
-        { parse_mode: 'Markdown' }
+        `🔐 *ReQurilish kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`
       );
-    } catch (botErr) {
-      console.error("OTP yuborishda bot xatosi:", botErr.message);
+    } catch (tgErr) {
+      console.error("OTP yuborishda xato:", tgErr.message);
       return res.status(500).json({
-        message: "Telegram xabar yuborishda xatolik. @Requrilishbot da /start bosgandan so'ng qayta urining",
+        message: `Telegram ga xabar yuborib bo'lmadi: ${tgErr.message}. @Requrilishbot da /start bosing.`,
       });
     }
 
-    res.json({ sent: true, message: "Telegram'ga 6 xonali kod yuborildi" });
+    res.json({ sent: true, message: "Telegram ga 6 xonali kod yuborildi" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -179,7 +173,8 @@ router.post("/register", async (req, res) => {
 // POST /api/auth/login — OTP kodi bilan kirish
 router.post("/login", async (req, res) => {
   try {
-    const { phone, code, tgChatId } = req.body;
+    const { code, tgChatId } = req.body;
+    const phone = (req.body.phone || "").replace(/\D/g, "").slice(-9);
     if (!phone) return res.status(400).json({ message: "Telefon majburiy" });
     if (!code)  return res.status(400).json({ message: "Kod majburiy" });
 
