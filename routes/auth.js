@@ -1,9 +1,28 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
+
+function validateTgInitData(initData) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) return true; // dev: skip
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get("hash");
+    if (!hash) return false;
+    params.delete("hash");
+    const dataCheckStr = [...params.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join("\n");
+    const secret = crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
+    const expected = crypto.createHmac("sha256", secret).update(dataCheckStr).digest("hex");
+    return expected === hash;
+  } catch { return false; }
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'remarket_secret_key_2024';
 
@@ -19,6 +38,33 @@ const formatUser = (u) => ({
   joined:   u.joined,
   balance:  u.balance,
   role:     u.role || "user",
+});
+
+// POST /api/auth/tg-init — Mini App ochilganda initData bilan avtomatik kirish
+router.post("/tg-init", async (req, res) => {
+  try {
+    const { initData } = req.body;
+    if (!initData) return res.status(400).json({ needBot: true, message: "initData yo'q" });
+
+    if (!validateTgInitData(initData)) {
+      return res.status(400).json({ needBot: true, message: "Telegram ma'lumotlari yaroqsiz" });
+    }
+
+    const params = new URLSearchParams(initData);
+    const tgUser = JSON.parse(params.get("user") || "{}");
+    const tgChatId = Number(tgUser.id);
+    if (!tgChatId) return res.status(400).json({ needBot: true, message: "Telegram ID topilmadi" });
+
+    const dbUser = await User.findByTgChatId(tgChatId);
+    if (!dbUser) {
+      return res.status(404).json({ needBot: true, message: "Ro'yxatdan o'tmagan. @Requrilishbot da /start bosing." });
+    }
+
+    const token = makeToken(dbUser.id);
+    res.json({ token, user: formatUser(dbUser) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 // POST /api/auth/send-code — Telegram orqali haqiqiy OTP yuborish
