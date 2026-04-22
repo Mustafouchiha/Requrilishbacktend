@@ -75,7 +75,6 @@ router.post("/send-code", async (req, res) => {
 
     const user = await User.findOne({ phone });
 
-    // Foydalanuvchi topilmasa yoki tg_chat_id yo'q bo'lsa — botdan ro'yxatdan o'tish kerak
     if (!user || !user.tg_chat_id) {
       return res.status(400).json({
         needBot: true,
@@ -83,14 +82,29 @@ router.post("/send-code", async (req, res) => {
       });
     }
 
-    const { createOtp } = require('../otpStore');
-    const { notifyUser } = require('../bot');
+    const { getBot } = require('../bot');
+    const bot = getBot();
+    if (!bot) {
+      return res.status(503).json({
+        message: "Bot hozircha ishlamayapti. Iltimos, keyinroq urinib ko'ring yoki @Requrilishbot da /start bosing",
+      });
+    }
 
+    const { createOtp } = require('../otpStore');
     const code = createOtp(phone);
-    await notifyUser(user.tg_chat_id,
-      `🔐 *ReQurilish kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`,
-      { parse_mode: 'Markdown' }
-    );
+
+    try {
+      await bot.telegram.sendMessage(
+        user.tg_chat_id,
+        `🔐 *ReQurilish kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (botErr) {
+      console.error("OTP yuborishda bot xatosi:", botErr.message);
+      return res.status(500).json({
+        message: "Telegram xabar yuborishda xatolik. @Requrilishbot da /start bosgandan so'ng qayta urining",
+      });
+    }
 
     res.json({ sent: true, message: "Telegram'ga 6 xonali kod yuborildi" });
   } catch (err) {
