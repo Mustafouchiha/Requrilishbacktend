@@ -109,7 +109,7 @@ router.post("/send-code", async (req, res) => {
 // POST /api/auth/register — faqat bot orqali kelgan foydalanuvchilar uchun
 router.post("/register", async (req, res) => {
   try {
-    const { name, phone, telegram, tgChatId } = req.body;
+    const { name, phone, telegram, tgChatId, code } = req.body;
 
     // 1. If tgChatId provided, check if this Telegram account already has a user
     //    → return THAT user's token (prevents fake phone registrations)
@@ -153,7 +153,15 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // 4. Create new user (from bot redirect)
+    // 4. Yangi foydalanuvchi — OTP tekshiruvi majburiy
+    if (!code) {
+      return res.status(400).json({ message: "Tasdiqlash kodi majburiy. Telegram ga yuborilgan kodni kiriting." });
+    }
+    const { verifyOtp } = require('../otpStore');
+    const otpResult = verifyOtp(phoneKey, code);
+    if (!otpResult.ok) return res.status(400).json({ message: otpResult.reason });
+
+    // Create new user (from bot redirect)
     let user = await User.create({ name, phone: phoneKey, telegram: telegram || "" });
     user = await User.findByIdAndUpdate(user.id, { tg_chat_id: Number(tgChatId) }) || user;
 

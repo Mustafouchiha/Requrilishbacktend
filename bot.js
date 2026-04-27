@@ -71,6 +71,18 @@ function getBot() {
             name: firstName, telegram: tgUsername, register: "1",
           });
           appUrl = `${MINI_APP_URL()}?${params.toString()}`;
+
+          // Yangi foydalanuvchi uchun OTP kodi yuborish
+          try {
+            const { createOtp } = require('./otpStore');
+            const { sendTg } = require('./utils/telegram');
+            const otpCode = createOtp(phone);
+            await sendTg(tgChatId,
+              `🔐 *ReQurilish ro'yxatdan o'tish kodi*\n\nKodingiz: \`${otpCode}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`
+            );
+          } catch (otpErr) {
+            console.error("Ro'yxatdan o'tish OTP yuborishda xato:", otpErr.message);
+          }
         }
 
         // Avval klaviaturani yashiramiz
