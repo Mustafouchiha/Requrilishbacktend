@@ -281,7 +281,7 @@ router.post("/deposit", async (req, res) => {
     if (found[0].tg_chat_id) {
       const { notifyUser } = require("../bot");
       await notifyUser(found[0].tg_chat_id,
-        `💰 *Hisobingiz to'ldirildi!*\n\nSumma: *${sum.toLocaleString()} so'm*\nJami balans: *${Number(rows[0].balance).toLocaleString()} so'm*`,
+        `💰 *Hisobingiz to'ldirildi!*\n\n➕ Qo'shilgan summa: *${sum.toLocaleString()} so'm*\n💼 Joriy balans: *${Number(rows[0].balance).toLocaleString()} so'm*\n\n✅ Operator: ${req.user.name || "Operator"}`,
         { parse_mode: "Markdown" }
       ).catch(() => {});
     }
@@ -319,7 +319,7 @@ router.post("/withdraw", async (req, res) => {
     if (found[0].tg_chat_id) {
       const { notifyUser } = require("../bot");
       await notifyUser(found[0].tg_chat_id,
-        `💸 *Hisobingizdan pul ayirildi*\n\nSumma: *${sum.toLocaleString()} so'm*\nQolgan balans: *${Number(rows[0].balance).toLocaleString()} so'm*`,
+        `💸 *Hisobingizdan yechildi*\n\n➖ Yechilgan: *${sum.toLocaleString()} so'm*\n💼 Joriy balans: *${Number(rows[0].balance).toLocaleString()} so'm*\n\nℹ️ Operator: ${req.user.name || "Operator"}`,
         { parse_mode: "Markdown" }
       ).catch(() => {});
     }

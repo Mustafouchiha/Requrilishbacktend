@@ -59,7 +59,7 @@ app.use("/api/operator", operatorRoutes);
 app.get("/", (_req, res) => {
   res.json({
     status: "ok",
-    message: "ReMarket API ishlayapti ✅",
+    message: "ReQurilish API ishlayapti ✅",
     database: "PostgreSQL",
     smsEnabled: process.env.SMS_ENABLED === "true",
     paymentEnabled: process.env.PAYMENT_ENABLED === "true",
