@@ -42,7 +42,9 @@ router.get("/pending-posts", async (req, res) => {
   }
 });
 
-// ── Postni tasdiqlash → pending_payment ──────────────────────────
+// ── Postni tasdiqlash ─────────────────────────────────────────────
+// PAYMENT_ENABLED=true  → pending_payment (to'lov kutiladi)
+// PAYMENT_ENABLED=false → active (to'g'ridan-to'g'ri faollashadi)
 router.put("/posts/:id/approve", async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -51,7 +53,10 @@ router.put("/posts/:id/approve", async (req, res) => {
       return res.status(400).json({ message: "Bu post allaqachon ko'rib chiqilgan" });
     }
 
-    const updated = await Product.setStatus(req.params.id, "pending_payment", {
+    const paymentEnabled = process.env.PAYMENT_ENABLED === "true";
+    const newStatus = paymentEnabled ? "pending_payment" : "active";
+
+    const updated = await Product.setStatus(req.params.id, newStatus, {
       approved_by: req.user.id,
     });
 
@@ -60,15 +65,17 @@ router.put("/posts/:id/approve", async (req, res) => {
       const owner = await User.findById(product.owner_id);
       if (owner?.tg_chat_id) {
         const { notifyUser } = require("../bot");
-        await notifyUser(owner.tg_chat_id,
-          `✅ *E'loningiz tasdiqlandi!*\n\n` +
-          `📦 Mahsulot: ${product.name}\n\n` +
-          `💳 Endi to'lov qiling:\n` +
-          `Karta: *${process.env.OPERATOR_CARD || "9860 0000 0000 0000"}*\n` +
-          `Egasi: ${process.env.OPERATOR_NAME || "Operator"}\n\n` +
-          `To'lov qilgandan so'ng e'loningiz faollashtiriladi.`,
-          { parse_mode: "Markdown" }
-        ).catch(() => {});
+        const msg = paymentEnabled
+          ? `✅ *E'loningiz tasdiqlandi!*\n\n` +
+            `📦 Mahsulot: ${product.name}\n\n` +
+            `💳 Endi to'lov qiling:\n` +
+            `Karta: *${process.env.OPERATOR_CARD || "9860 0000 0000 0000"}*\n` +
+            `Egasi: ${process.env.OPERATOR_NAME || "Operator"}\n\n` +
+            `To'lov qilgandan so'ng e'loningiz faollashtiriladi.`
+          : `✅ *E'loningiz tasdiqlandi va faollashtirildi!*\n\n` +
+            `📦 Mahsulot: ${product.name}\n\n` +
+            `🎉 E'loningiz bozorda ko'rinmoqda!`;
+        await notifyUser(owner.tg_chat_id, msg, { parse_mode: "Markdown" }).catch(() => {});
       }
     }
 
