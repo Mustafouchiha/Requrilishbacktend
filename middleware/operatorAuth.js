@@ -18,6 +18,7 @@ module.exports = async function operatorAuth(req, res, next) {
     const { rows } = await query("SELECT * FROM users WHERE id = $1 LIMIT 1", [decoded.id]);
     const user = rows[0];
     if (!user) return res.status(401).json({ message: "Foydalanuvchi topilmadi" });
+    if (user.is_blocked) return res.status(403).json({ message: "Hisobingiz bloklangan" });
 
     const isOperator =
       OPERATOR_PHONES.includes(user.phone) ||

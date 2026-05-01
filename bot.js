@@ -49,55 +49,89 @@ function getBot() {
     });
 
     bot.on("contact", async (ctx) => {
-      const firstName = ctx.from.first_name || "";
-      const tgChatId = ctx.from.id;
-      const rawPhone = ctx.message.contact.phone_number.replace(/\D/g, "");
-      const phone = rawPhone.startsWith("998") ? rawPhone.slice(3) : rawPhone;
+      const firstName  = ctx.from.first_name || "Foydalanuvchi";
+      const lastName   = ctx.from.last_name  || "";
+      const fullName   = lastName ? `${firstName} ${lastName}` : firstName;
+      const tgChatId   = ctx.from.id;
+      const tgUsername = ctx.from.username ? `@${ctx.from.username}` : "";
+      const rawPhone   = ctx.message.contact.phone_number.replace(/\D/g, "");
+      const phone      = rawPhone.startsWith("998") ? rawPhone.slice(3) : rawPhone;
 
       try {
+        // 1. Foydalanuvchini topish yoki AVTOMATIK yaratish
         let user = await User.findOne({ phone });
-        let appUrl;
+        let isNew = false;
 
-        if (user) {
-          if (String(user.tg_chat_id) !== String(tgChatId)) {
-            user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
-          }
-          const token = await createToken(user.id);
-          appUrl = `${MINI_APP_URL()}?tgToken=${token}`;
-        } else {
-          const tgUsername = ctx.from.username ? `@${ctx.from.username}` : "";
-          const params = new URLSearchParams({
-            phone, tgChatId: String(tgChatId),
-            name: firstName, telegram: tgUsername, register: "1",
+        if (!user) {
+          // Yangi user → DB ga avtomatik yozamiz
+          isNew = true;
+          user = await User.create({
+            name:     fullName,
+            phone,
+            telegram: tgUsername,
           });
-          appUrl = `${MINI_APP_URL()}?${params.toString()}`;
+          console.log(`✅ Yangi user yaratildi: ${fullName} (${phone})`);
         }
 
-        // Avval klaviaturani yashiramiz
+        // 2. tg_chat_id ni bog'laymiz
+        if (String(user.tg_chat_id) !== String(tgChatId)) {
+          user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+        }
+
+        // 3. Bir martalik tgToken (to'g'ridan-to'g'ri kirish uchun)
+        const tgToken = await createToken(user.id);
+        const appUrl  = `${MINI_APP_URL()}?tgToken=${tgToken}`;
+
+        // 4. Klaviaturani yashirish
         await ctx.reply("✅", { reply_markup: { remove_keyboard: true } });
 
-        const isNew = !user;
-        await ctx.reply(
-          isNew
-            ? `Salom, ${firstName}! 👋\n\nSiz yangi foydalanuvchisiz.\nQuyidagi tugmani bosing:`
-            : `Salom, ${firstName}! ✅\n\nQuyidagi tugmani bosib kiring:`,
-          {
-            reply_markup: {
-              inline_keyboard: [[
-                { text: "🏗 ReQurilish'ga kirish", web_app: { url: appUrl } },
-              ]],
-            },
-          }
-        );
+        // 5. Mini App kirish xabari
+        const welcomeText = isNew
+          ? `🎉 *Xush kelibsiz, ${firstName}!*\n\nRo'yxatdan muvaffaqiyatli o'tdingiz.\n📱 Telefon: +998 ${phone}\n\nQuyidagi tugmani bosib kiring:`
+          : `👋 *Salom, ${firstName}!*\n\nQuyidagi tugmani bosib kiring:`;
+
+        await ctx.reply(welcomeText, {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🏗 ReQurilish'ga kirish", web_app: { url: appUrl } }],
+            ],
+          },
+        });
+
       } catch (e) {
-        console.error("Bot contact handler xatosi:", e.message);
-        ctx.reply("Xatolik yuz berdi. /start bosing.");
+        console.error("Bot contact handler xatosi:", e.message, e.stack);
+        ctx.reply(
+          `⚠️ Xato yuz berdi: ${e.message}\n\n/start bosib qayta urinib ko'ring.`
+        ).catch(() => {});
       }
     });
 
+    bot.command("id", (ctx) => {
+      ctx.reply(`🆔 Sizning Telegram ID: \`${ctx.from.id}\``, { parse_mode: "Markdown" });
+    });
+
+    bot.command("help", (ctx) => {
+      ctx.reply(
+        `📖 *ReQurilish Bot yordam*\n\n` +
+        `/start — Botni boshlash, kirish havolasi\n` +
+        `/id — Telegram ID ni ko'rish\n\n` +
+        `❓ Muammo bo'lsa: @Requrilish_admin ga murojaat qiling`,
+        { parse_mode: "Markdown" }
+      );
+    });
+
     bot.launch()
-      .then(() => console.log("🤖 ReQurilish bot ishga tushdi"))
-      .catch(err => console.error("❌ Bot launch xatosi:", err.message));
+      .then(() => console.log("🤖 ReQurilish bot ishga tushdi (polling rejim)"))
+      .catch(err => {
+        console.error("❌ Bot launch xatosi:", err.message);
+        if (err.message.includes("401")) {
+          console.error("⚠️  TELEGRAM_BOT_TOKEN noto'g'ri! @BotFather dan token oling.");
+        }
+      });
+
+    process.once("SIGINT",  () => bot.stop("SIGINT"));
+    process.once("SIGTERM", () => bot.stop("SIGTERM"));
   }
   return bot;
 }

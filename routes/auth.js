@@ -67,40 +67,76 @@ router.post("/tg-init", async (req, res) => {
   }
 });
 
-// POST /api/auth/send-code — Telegram orqali OTP yuborish
+// POST /api/auth/send-code — OTP yuborish (yangi user bo'lsa ham avtomatik yaratadi)
 router.post("/send-code", async (req, res) => {
   try {
     const rawPhone = (req.body.phone || "").replace(/\D/g, "").slice(-9);
     if (!rawPhone || rawPhone.length < 9)
-      return res.status(400).json({ message: "Telefon raqam noto'g'ri" });
+      return res.status(400).json({ message: "Telefon raqam noto'g'ri (9 xona kerak)" });
 
-    const user = await User.findOne({ phone: rawPhone });
+    const tgChatId = req.body.tgChatId ? Number(req.body.tgChatId) : null;
+    const name     = (req.body.name || "").trim() || "Foydalanuvchi";
+    const telegram = (req.body.telegram || "").trim();
 
-    if (!user || !user.tg_chat_id) {
+    let user = await User.findOne({ phone: rawPhone });
+
+    // Telefon bo'yicha topilmasa — tgChatId bo'yicha qidirish
+    if (!user && tgChatId) {
+      user = await User.findByTgChatId(tgChatId);
+      if (user) {
+        // Mavjud userga telefon raqamini bog'laymiz
+        user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+      }
+    }
+
+    // Hali ham topilmasa — Mini App orqali avtomatik ro'yxatdan o'tkazamiz
+    if (!user) {
+      if (!tgChatId) {
+        return res.status(400).json({
+          needBot: true,
+          message: "Bu raqam ro'yxatdan o'tmagan. @Requrilishbot da /start bosib telefon yuboring.",
+        });
+      }
+      // Yangi user yaratamiz
+      user = await User.create({ name, phone: rawPhone, telegram });
+      user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+      console.log(`✅ Mini App orqali yangi user yaratildi: ${name} (${rawPhone})`);
+    } else if (tgChatId && !user.tg_chat_id) {
+      // tg_chat_id yo'q bo'lsa bog'laymiz
+      user = await User.findByIdAndUpdate(user.id, { tg_chat_id: tgChatId }) || user;
+    }
+
+    if (!user.tg_chat_id) {
       return res.status(400).json({
         needBot: true,
-        message: "Bu raqam ro'yxatdan o'tmagan. @Requrilishbot da /start bosing va telefon yuboring.",
+        message: "Telegram akkauntingiz bog'lanmagan. @Requrilishbot da /start bosib telefon yuboring.",
       });
     }
 
     const { createOtp } = require('../otpStore');
     const { sendTg }    = require('../utils/telegram');
-
     const code = createOtp(rawPhone);
 
     try {
       await sendTg(
         user.tg_chat_id,
-        `🔐 *ReQurilish kirish kodi*\n\nKodingiz: \`${code}\`\n\n⏱ 5 daqiqa amal qiladi.\nBu kodni hech kimga bermang.`
+        `🔐 *ReQurilish — Kirish kodi*\n\n` +
+        `Sizning kodingiz:\n` +
+        `┌─────────────┐\n` +
+        `│   \`${code}\`   │\n` +
+        `└─────────────┘\n\n` +
+        `⏱ 5 daqiqa amal qiladi\n` +
+        `🚫 Bu kodni hech kimga bermang!`
       );
     } catch (tgErr) {
       console.error("OTP yuborishda xato:", tgErr.message);
       return res.status(500).json({
-        message: `Telegram ga xabar yuborib bo'lmadi: ${tgErr.message}. @Requrilishbot da /start bosing.`,
+        message: `Telegram xabar yuborilmadi: ${tgErr.message}`,
+        needBot: true,
       });
     }
 
-    res.json({ sent: true, message: "Telegram ga 6 xonali kod yuborildi" });
+    res.json({ sent: true, isNew: !user.joined || false, message: "Telegram ga 6 xonali kod yuborildi" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

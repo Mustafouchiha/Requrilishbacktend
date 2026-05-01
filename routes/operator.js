@@ -148,20 +148,29 @@ router.delete("/posts/:id", async (req, res) => {
 router.get("/products", async (req, res) => {
   try {
     const q = (req.query.q || "").trim();
-    const status = req.query.status || "all";
-    let whereStatus = "";
-    if (status !== "all") whereStatus = `AND p.status = '${status.replace(/'/g, "")}'`;
+    const VALID_STATUSES = ["active", "pending_approval", "pending_payment", "hidden", "deleted"];
+    const statusFilter = req.query.status || "all";
+    const useStatus = statusFilter !== "all" && VALID_STATUSES.includes(statusFilter);
 
     let rows;
-    if (!q) {
+    if (!q && !useStatus) {
       ({ rows } = await query(
         `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id
-         WHERE p.status != 'deleted' ${whereStatus}
+         WHERE p.status != 'deleted'
          ORDER BY p.created_at DESC LIMIT 50`
       ));
-    } else {
+    } else if (!q && useStatus) {
+      ({ rows } = await query(
+        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+                u.name AS owner_name, u.phone AS owner_phone, p.created_at
+         FROM products p LEFT JOIN users u ON p.owner_id = u.id
+         WHERE p.status = $1
+         ORDER BY p.created_at DESC LIMIT 50`,
+        [statusFilter]
+      ));
+    } else if (q && !useStatus) {
       ({ rows } = await query(
         `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
@@ -170,6 +179,16 @@ router.get("/products", async (req, res) => {
            AND (p.name ILIKE $1 OR p.id::text ILIKE $1 OR u.phone ILIKE $1 OR u.name ILIKE $1)
          ORDER BY p.created_at DESC LIMIT 30`,
         [`%${q}%`]
+      ));
+    } else {
+      ({ rows } = await query(
+        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+                u.name AS owner_name, u.phone AS owner_phone, p.created_at
+         FROM products p LEFT JOIN users u ON p.owner_id = u.id
+         WHERE p.status = $1
+           AND (p.name ILIKE $2 OR p.id::text ILIKE $2 OR u.phone ILIKE $2 OR u.name ILIKE $2)
+         ORDER BY p.created_at DESC LIMIT 30`,
+        [statusFilter, `%${q}%`]
       ));
     }
     res.json(rows);

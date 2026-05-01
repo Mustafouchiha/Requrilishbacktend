@@ -14,6 +14,7 @@ module.exports = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = await User.findById(decoded.id);
     if (!req.user) return res.status(401).json({ message: "Foydalanuvchi topilmadi" });
+    if (req.user.is_blocked) return res.status(403).json({ message: "Hisobingiz bloklangan" });
     next();
   } catch {
     return res.status(401).json({ message: "Token yaroqsiz" });
