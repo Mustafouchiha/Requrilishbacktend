@@ -33,18 +33,17 @@ router.post("/", authMiddleware, async (req, res) => {
       message:    message || "",
     });
 
-    // Sotuvchiga xabar
+    // Sotuvchiga xabar — xaridor kontakti mahfiy, faqat to'lovdan keyin yuboriladi
     if (product.owner_id) {
       const seller = await User.findById(product.owner_id);
       if (seller?.tg_chat_id) {
         await notifyUser(
           seller.tg_chat_id,
           `📦 *Yangi taklif keldi!*\n\n` +
-          `👤 Xaridor: ${req.user.name} (${req.user.phone})\n` +
           `🧱 Mahsulot: ${product.name}\n` +
           `💰 Narx: ${Number(product.price).toLocaleString()} so'm\n` +
           (message ? `💬 Xabar: ${message}\n` : "") +
-          `\nReQurilish'da ko'rish →`,
+          `\n🔒 Xaridor ma'lumotlari to'lovdan so'ng yuboriladi.`,
           {
             reply_markup: {
               inline_keyboard: [[{
