@@ -176,9 +176,17 @@ router.post("/balance-pay", authMiddleware, async (req, res) => {
       if (offer.product_id) await Product.setStatus(offer.product_id, "deleted");
 
       const { notifyUser } = require("../bot");
+      // Xaridorga — sotuvchi kontakti
       if (offer.buyer_chat) {
         await notifyUser(offer.buyer_chat,
-          `✅ *Bitim yakunlandi!*\n\n📦 ${offer.product_name}\n\n📞 Sotuvchi:\n👤 ${req.user.name}\n📱 +998 ${req.user.phone}\n✈️ ${req.user.telegram || "—"}`,
+          `✅ *Bitim yakunlandi!*\n\n📦 ${offer.product_name}\n\n📞 *Sotuvchi ma'lumotlari:*\n👤 ${req.user.name}\n📱 +998 ${req.user.phone}\n✈️ ${req.user.telegram || "—"}`,
+          { parse_mode: "Markdown" }
+        ).catch(() => {});
+      }
+      // Sotuvchiga — xaridor kontakti
+      if (req.user.tg_chat_id) {
+        await notifyUser(req.user.tg_chat_id,
+          `💸 *Bitim yakunlandi!*\n\n📦 ${offer.product_name}\n\n📞 *Xaridor ma'lumotlari:*\n👤 ${offer.buyer_name || "—"}\n📱 +998 ${offer.buyer_phone || "—"}\n✈️ ${offer.buyer_tg || "—"}`,
           { parse_mode: "Markdown" }
         ).catch(() => {});
       }

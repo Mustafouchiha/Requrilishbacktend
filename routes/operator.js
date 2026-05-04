@@ -140,6 +140,37 @@ router.put("/posts/:id/show", async (req, res) => {
   }
 });
 
+// ── To'lovni yoqish/o'chirish (pending_payment ↔ active) ─────────
+router.put("/posts/:id/toggle-payment", async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ message: "Post topilmadi" });
+    const newStatus = product.status === "pending_payment" ? "active" : "pending_payment";
+    const updated = await Product.setStatus(req.params.id, newStatus);
+    res.json({ message: newStatus === "active" ? "To'lovsiz faollashtirildi" : "To'lov kutish holatiga qaytarildi", product: updated });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── Postni tahrirlash (operator) ─────────────────────────────────
+router.put("/posts/:id/edit", async (req, res) => {
+  try {
+    const { query } = require("../db");
+    const allowed = ["name","category","price","unit","qty","condition","viloyat","tuman"];
+    const fields = []; const vals = [];
+    for (const f of allowed) {
+      if (req.body[f] !== undefined) { fields.push(`${f} = $${vals.length + 1}`); vals.push(req.body[f]); }
+    }
+    if (!fields.length) return res.status(400).json({ message: "O'zgartiriladigan maydon yo'q" });
+    vals.push(req.params.id);
+    const { rows } = await query(
+      `UPDATE products SET ${fields.join(", ")}, updated_at=NOW() WHERE id=$${vals.length} RETURNING *`,
+      vals
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Post topilmadi" });
+    res.json({ message: "Yangilandi", product: rows[0] });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // ── Postni o'chirish (permanent soft delete) ─────────────────────
 router.delete("/posts/:id", async (req, res) => {
   try {
@@ -163,6 +194,7 @@ router.get("/products", async (req, res) => {
     if (!q && !useStatus) {
       ({ rows } = await query(
         `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+                p.view_count, p.like_count,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id
          WHERE p.status != 'deleted'
@@ -171,6 +203,7 @@ router.get("/products", async (req, res) => {
     } else if (!q && useStatus) {
       ({ rows } = await query(
         `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+                p.view_count, p.like_count,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id
          WHERE p.status = $1
@@ -180,6 +213,7 @@ router.get("/products", async (req, res) => {
     } else if (q && !useStatus) {
       ({ rows } = await query(
         `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+                p.view_count, p.like_count,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id
          WHERE p.status != 'deleted'
@@ -190,6 +224,7 @@ router.get("/products", async (req, res) => {
     } else {
       ({ rows } = await query(
         `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+                p.view_count, p.like_count,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id
          WHERE p.status = $1

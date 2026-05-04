@@ -173,6 +173,8 @@ async function initTables(p) {
     [`approved_by`,     `UUID`],
     [`rejected_reason`, `TEXT`],
     [`updated_at`,      `TIMESTAMPTZ DEFAULT NOW()`],
+    [`view_count`,      `INTEGER NOT NULL DEFAULT 0`],
+    [`like_count`,      `INTEGER NOT NULL DEFAULT 0`],
   ];
   for (const [col, def] of prodCols) {
     await run(`
@@ -192,6 +194,16 @@ async function initTables(p) {
     EXCEPTION WHEN others THEN NULL;
     END $$;
   `).catch(() => {});
+
+  // product_likes — kim qaysi postni layk bosgan
+  await run(`
+    CREATE TABLE IF NOT EXISTS product_likes (
+      user_id    UUID        NOT NULL,
+      product_id UUID        NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, product_id)
+    );
+  `);
 
   // 4. Offers
   await run(`

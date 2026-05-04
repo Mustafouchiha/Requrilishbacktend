@@ -2,6 +2,7 @@ const express = require("express");
 const Product = require("../models/Product");
 const authMiddleware = require("../middleware/auth");
 const optionalAuth = require("../middleware/optionalAuth");
+const { query } = require("../db");
 
 const router = express.Router();
 
@@ -25,6 +26,9 @@ function formatProduct(p, loggedIn = false) {
     status:       p.status || "active",
     rejectedReason: p.rejected_reason || null,
     createdAt:    p.created_at,
+    viewCount:    Number(p.view_count || 0),
+    likeCount:    Number(p.like_count || 0),
+    isLiked:      p.is_liked || false,
   };
 }
 
@@ -112,6 +116,49 @@ router.post("/", authMiddleware, async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// GET /api/products/:id — bitta mahsulot
+router.get("/:id", optionalAuth, async (req, res) => {
+  try {
+    const userId = req.user?.id || null;
+    const { rows } = await query(
+      `SELECT p.*, u.name AS owner_name, u.phone AS owner_phone, u.telegram AS owner_telegram,
+              ${userId ? `EXISTS(SELECT 1 FROM product_likes WHERE user_id=$2 AND product_id=p.id) AS is_liked` : `false AS is_liked`}
+       FROM products p LEFT JOIN users u ON u.id=p.owner_id
+       WHERE p.id=$1 LIMIT 1`,
+      userId ? [req.params.id, userId] : [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi" });
+    res.json(formatProduct(rows[0], !!req.user));
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/products/:id/view — ko'rishlar sonini oshirish
+router.post("/:id/view", async (req, res) => {
+  try {
+    await query(`UPDATE products SET view_count = view_count + 1 WHERE id=$1`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/products/:id/like — like toggle
+router.post("/:id/like", authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT 1 FROM product_likes WHERE user_id=$1 AND product_id=$2`,
+      [req.user.id, req.params.id]
+    );
+    if (rows.length > 0) {
+      await query(`DELETE FROM product_likes WHERE user_id=$1 AND product_id=$2`, [req.user.id, req.params.id]);
+      await query(`UPDATE products SET like_count = GREATEST(0, like_count - 1) WHERE id=$1`, [req.params.id]);
+      res.json({ liked: false });
+    } else {
+      await query(`INSERT INTO product_likes (user_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.user.id, req.params.id]);
+      await query(`UPDATE products SET like_count = like_count + 1 WHERE id=$1`, [req.params.id]);
+      res.json({ liked: true });
+    }
+  } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 // PUT /api/products/:id — yangilash
