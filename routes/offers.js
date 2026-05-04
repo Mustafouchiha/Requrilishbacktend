@@ -118,6 +118,20 @@ router.get("/sent", authMiddleware, async (req, res) => {
   }
 });
 
+// DELETE /api/offers/:id — taklifni bekor qilish (buyer)
+router.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await require("../db").query(
+      `DELETE FROM offers WHERE id=$1 AND buyer_id=$2 AND status='pending' RETURNING id`,
+      [req.params.id, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Taklif topilmadi yoki o'chirib bo'lmaydi" });
+    res.json({ message: "Taklif bekor qilindi" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // PUT /api/offers/:id/paid — to'lov tasdiqlash (seller) + post o'chirish
 router.put("/:id/paid", authMiddleware, async (req, res) => {
   try {
