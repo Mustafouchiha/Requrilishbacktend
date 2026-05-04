@@ -36,6 +36,8 @@ router.get("/pending-posts", async (req, res) => {
       ownerTelegram: p.owner_telegram || "",
       ownerId: p.owner_id,
       createdAt: p.created_at,
+      view_count: Number(p.view_count || 0),
+      like_count: Number(p.like_count || 0),
     })));
   } catch (err) {
     res.status(500).json({ message: err.message });
