@@ -309,7 +309,82 @@ async function initTables(p) {
     END $$;
   `).catch(() => {});
 
-  // 8. Indexes
+  // 8. Rentals (arenda e'lonlari)
+  await run(`
+    CREATE TABLE IF NOT EXISTS rentals (
+      id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+      name            VARCHAR(255) NOT NULL DEFAULT '',
+      category        VARCHAR(50)  NOT NULL DEFAULT 'boshqa',
+      price_per_day   NUMERIC      NOT NULL DEFAULT 0,
+      price_per_hour  NUMERIC      NOT NULL DEFAULT 0,
+      viloyat         VARCHAR(255) NOT NULL DEFAULT '',
+      tuman           VARCHAR(255) DEFAULT '',
+      description     TEXT         DEFAULT '',
+      photo           TEXT,
+      photos          TEXT,
+      owner_id        UUID,
+      status          VARCHAR(30)  DEFAULT 'pending_approval',
+      view_count      INTEGER      NOT NULL DEFAULT 0,
+      created_at      TIMESTAMPTZ  DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ  DEFAULT NOW()
+    );
+  `);
+
+  await run(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='rentals' AND constraint_name='rentals_owner_id_fkey'
+      ) THEN
+        ALTER TABLE rentals ADD CONSTRAINT rentals_owner_id_fkey
+          FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `).catch(() => {});
+
+  // 9. Rental bookings
+  await run(`
+    CREATE TABLE IF NOT EXISTS rental_bookings (
+      id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      rental_id    UUID        NOT NULL,
+      renter_id    UUID        NOT NULL,
+      start_date   DATE        NOT NULL,
+      end_date     DATE        NOT NULL,
+      total_days   INTEGER     NOT NULL DEFAULT 1,
+      total_price  NUMERIC     NOT NULL DEFAULT 0,
+      fee          NUMERIC     NOT NULL DEFAULT 0,
+      status       VARCHAR(30) DEFAULT 'confirmed',
+      note         TEXT        DEFAULT '',
+      created_at   TIMESTAMPTZ DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  await run(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='rental_bookings' AND constraint_name='rental_bookings_rental_id_fkey'
+      ) THEN
+        ALTER TABLE rental_bookings ADD CONSTRAINT rental_bookings_rental_id_fkey
+          FOREIGN KEY (rental_id) REFERENCES rentals(id) ON DELETE CASCADE;
+      END IF;
+    END $$;
+  `).catch(() => {});
+
+  await run(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='rental_bookings' AND constraint_name='rental_bookings_renter_id_fkey'
+      ) THEN
+        ALTER TABLE rental_bookings ADD CONSTRAINT rental_bookings_renter_id_fkey
+          FOREIGN KEY (renter_id) REFERENCES users(id) ON DELETE CASCADE;
+      END IF;
+    END $$;
+  `).catch(() => {});
+
+  // 10. Indexes
   const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_products_status   ON products (status, created_at DESC);`,
     `CREATE INDEX IF NOT EXISTS idx_products_owner    ON products (owner_id);`,
@@ -318,6 +393,10 @@ async function initTables(p) {
     `CREATE INDEX IF NOT EXISTS idx_offers_seller     ON offers (seller_id);`,
     `CREATE INDEX IF NOT EXISTS idx_users_tg          ON users (tg_chat_id);`,
     `CREATE INDEX IF NOT EXISTS idx_users_phone       ON users (phone);`,
+    `CREATE INDEX IF NOT EXISTS idx_rentals_status    ON rentals (status, created_at DESC);`,
+    `CREATE INDEX IF NOT EXISTS idx_rentals_owner     ON rentals (owner_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_bookings_rental   ON rental_bookings (rental_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_bookings_renter   ON rental_bookings (renter_id);`,
   ];
   for (const idx of indexes) {
     await run(idx).catch(() => {});

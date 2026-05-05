@@ -666,12 +666,163 @@ router.get("/stats", async (req, res) => {
         (SELECT COUNT(*) FROM users) AS total_users,
         (SELECT COUNT(*) FROM products WHERE status = 'active') AS active_products,
         (SELECT COUNT(*) FROM products WHERE status = 'pending_approval') AS pending_approval,
-        (SELECT COUNT(*) FROM payments WHERE status = 'pending') AS pending_payments
+        (SELECT COUNT(*) FROM payments WHERE status = 'pending') AS pending_payments,
+        (SELECT COUNT(*) FROM rentals WHERE status = 'pending_approval') AS pending_rentals,
+        (SELECT COUNT(*) FROM rental_bookings WHERE status = 'confirmed') AS active_bookings
     `);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// ── Arenda e'lonlari (operator) ──────────────────────────────────
+router.get("/rentals", async (req, res) => {
+  try {
+    const q = (req.query.q || "").trim();
+    const statusFilter = req.query.status || "";
+    const VALID = ["active","pending_approval","hidden","deleted"];
+    const useStatus = statusFilter && VALID.includes(statusFilter);
+
+    const conds = useStatus ? [`r.status = $1`] : [`r.status != 'deleted'`];
+    const vals  = useStatus ? [statusFilter] : [];
+    let i = vals.length + 1;
+
+    if (q) {
+      conds.push(`(r.name ILIKE $${i} OR u.name ILIKE $${i} OR u.phone ILIKE $${i})`);
+      vals.push(`%${q}%`); i++;
+    }
+
+    const { rows } = await query(
+      `SELECT r.id, r.name, r.price_per_day, r.price_per_hour, r.category, r.viloyat,
+              r.status, r.view_count, r.created_at,
+              u.name AS owner_name, u.phone AS owner_phone
+       FROM rentals r LEFT JOIN users u ON u.id = r.owner_id
+       WHERE ${conds.join(" AND ")} ORDER BY r.created_at DESC LIMIT 50`,
+      vals
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── Arenda tasdiqlash ────────────────────────────────────────────
+router.put("/rentals/:id/approve", async (req, res) => {
+  try {
+    const { rows } = await query(
+      `UPDATE rentals SET status='active', updated_at=NOW() WHERE id=$1 AND status='pending_approval' RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi yoki allaqachon ko'rib chiqilgan" });
+
+    // Egaga xabar
+    const { rows: owner } = await query("SELECT tg_chat_id, name FROM users WHERE id=$1", [rows[0].owner_id]);
+    if (owner[0]?.tg_chat_id) {
+      const { notifyUser } = require("../bot");
+      await notifyUser(owner[0].tg_chat_id,
+        `✅ *Arenda e'loningiz tasdiqlandi!*\n\n🏠 ${rows[0].name}\n\n🎉 E'loningiz foydalanuvchilarga ko'rinmoqda!`,
+        { parse_mode: "Markdown" }
+      ).catch(() => {});
+    }
+    res.json({ message: "Tasdiqlandi", rental: rows[0] });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── Arenda rad etish ─────────────────────────────────────────────
+router.put("/rentals/:id/reject", async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const { rows } = await query(
+      `UPDATE rentals SET status='deleted', updated_at=NOW() WHERE id=$1 RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi" });
+    res.json({ message: "Rad etildi", rental: rows[0] });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── Arenda yashirish/ko'rsatish ──────────────────────────────────
+router.put("/rentals/:id/hide", async (req, res) => {
+  try {
+    const { rows } = await query(`UPDATE rentals SET status='hidden', updated_at=NOW() WHERE id=$1 RETURNING *`, [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi" });
+    res.json({ message: "Yashirildi" });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.put("/rentals/:id/show", async (req, res) => {
+  try {
+    const { rows } = await query(`UPDATE rentals SET status='active', updated_at=NOW() WHERE id=$1 RETURNING *`, [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi" });
+    res.json({ message: "Ko'rsatildi" });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── Arenda tahrirlash ────────────────────────────────────────────
+router.put("/rentals/:id/edit", async (req, res) => {
+  try {
+    const allowed = ["name","category","price_per_day","price_per_hour","viloyat","tuman","description"];
+    const fields = []; const vals = [];
+    for (const f of allowed) {
+      if (req.body[f] !== undefined) { fields.push(`${f}=$${vals.length+1}`); vals.push(req.body[f]); }
+    }
+    if (!fields.length) return res.status(400).json({ message: "Hech narsa o'zgarmadi" });
+    vals.push(req.params.id);
+    const { rows } = await query(
+      `UPDATE rentals SET ${fields.join(",")}, updated_at=NOW() WHERE id=$${vals.length} RETURNING *`, vals
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi" });
+    res.json({ message: "Yangilandi", rental: rows[0] });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── Arenda o'chirish ─────────────────────────────────────────────
+router.delete("/rentals/:id", async (req, res) => {
+  try {
+    await query(`UPDATE rentals SET status='deleted', updated_at=NOW() WHERE id=$1`, [req.params.id]);
+    res.json({ message: "O'chirildi" });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── Barcha bronlar (operator) ────────────────────────────────────
+router.get("/rental-bookings", async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT b.*, r.name AS rental_name,
+              u.name AS renter_name, u.phone AS renter_phone,
+              o.name AS owner_name, o.phone AS owner_phone
+       FROM rental_bookings b
+       LEFT JOIN rentals r ON r.id = b.rental_id
+       LEFT JOIN users u ON u.id = b.renter_id
+       LEFT JOIN users o ON o.id = r.owner_id
+       ORDER BY b.created_at DESC LIMIT 100`
+    );
+    res.json(rows.map(b => ({
+      id: b.id, rentalName: b.rental_name,
+      renterName: b.renter_name, renterPhone: b.renter_phone,
+      ownerName: b.owner_name, ownerPhone: b.owner_phone,
+      startDate: b.start_date, endDate: b.end_date,
+      totalDays: b.total_days, totalPrice: Number(b.total_price),
+      fee: Number(b.fee), status: b.status,
+      createdAt: b.created_at,
+    })));
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── Bronni bekor qilish (operator) ──────────────────────────────
+router.delete("/rental-bookings/:id", async (req, res) => {
+  try {
+    const { rows } = await query(
+      `UPDATE rental_bookings SET status='cancelled', updated_at=NOW() WHERE id=$1 RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi" });
+    // Xizmat haqini qaytarish
+    const fee = Number(rows[0].fee || 0);
+    if (fee > 0) {
+      await query("UPDATE users SET balance = balance + $1 WHERE id = $2", [fee, rows[0].renter_id]);
+    }
+    res.json({ message: "Bekor qilindi. Xizmat haqi qaytarildi." });
+  } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 module.exports = router;
