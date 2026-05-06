@@ -384,7 +384,21 @@ async function initTables(p) {
     END $$;
   `).catch(() => {});
 
-  // 10. Indexes
+  // 10. Settings (feature flags)
+  await run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key        VARCHAR(100) PRIMARY KEY,
+      value      TEXT         NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ  DEFAULT NOW()
+    );
+  `);
+  // Default: arenda o'chirilgan (MVP uchun)
+  await run(`
+    INSERT INTO settings (key, value) VALUES ('arenda_enabled', 'false')
+    ON CONFLICT (key) DO NOTHING;
+  `).catch(() => {});
+
+  // 11. Indexes
   const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_products_status   ON products (status, created_at DESC);`,
     `CREATE INDEX IF NOT EXISTS idx_products_owner    ON products (owner_id);`,
