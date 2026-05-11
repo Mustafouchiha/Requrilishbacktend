@@ -26,9 +26,11 @@ function formatProduct(p, loggedIn = false) {
     status:       p.status || "active",
     rejectedReason: p.rejected_reason || null,
     createdAt:    p.created_at,
-    viewCount:    Number(p.view_count || 0),
-    likeCount:    Number(p.like_count || 0),
-    isLiked:      p.is_liked || false,
+    viewCount:        Number(p.view_count || 0),
+    likeCount:        Number(p.like_count || 0),
+    isLiked:          p.is_liked || false,
+    pendingSaleUntil: p.pending_sale_until || null,
+    paidFee:          Number(p.paid_fee || 0),
   };
 }
 
@@ -76,6 +78,28 @@ router.get("/", optionalAuth, async (req, res) => {
 // GET /api/products/my — o'z postlari (barcha statuslar)
 router.get("/my", authMiddleware, async (req, res) => {
   try {
+    // pending_sale muddati o'tgan — avtomatik active ga qaytarish + fee refund
+    const { rows: expired } = await query(
+      `UPDATE products
+       SET status='active', pending_sale_until=NULL, updated_at=NOW()
+       WHERE owner_id=$1 AND status='pending_sale' AND pending_sale_until IS NOT NULL AND pending_sale_until < NOW()
+       RETURNING id, paid_fee, owner_id`,
+      [req.user.id]
+    ).catch(() => ({ rows: [] }));
+
+    for (const p of expired) {
+      if (Number(p.paid_fee) > 0) {
+        await query(
+          "UPDATE users SET balance = balance + $1 WHERE id = $2",
+          [p.paid_fee, p.owner_id]
+        ).catch(() => {});
+        await query(
+          "UPDATE products SET paid_fee=0, paid_offer_id=NULL WHERE id=$1",
+          [p.id]
+        ).catch(() => {});
+      }
+    }
+
     const { rows } = await query(
       `SELECT p.*, u.name AS owner_name, u.phone AS owner_phone, u.telegram AS owner_telegram,
               false AS is_liked
@@ -204,6 +228,46 @@ router.put("/:id", authMiddleware, async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// POST /api/products/:id/sold — sotuvchi: mahsulot sotildi (o'chirish)
+router.post("/:id/sold", authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `UPDATE products SET status='deleted', is_active=false, pending_sale_until=NULL, updated_at=NOW()
+       WHERE id=$1 AND owner_id=$2 AND status='pending_sale'
+       RETURNING id`,
+      [req.params.id, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi yoki ruxsat yo'q" });
+    res.json({ ok: true, message: "Post o'chirildi — tabriklaymiz!" });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/products/:id/not-sold — sotuvchi: sotilmadi, qaytarish + to'lov refund
+router.post("/:id/not-sold", authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `UPDATE products
+       SET status='active', is_active=true, pending_sale_until=NULL, updated_at=NOW()
+       WHERE id=$1 AND owner_id=$2 AND status='pending_sale'
+       RETURNING id, paid_fee`,
+      [req.params.id, req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: "Topilmadi yoki ruxsat yo'q" });
+    const fee = Number(rows[0].paid_fee || 0);
+    if (fee > 0) {
+      await query(
+        "UPDATE users SET balance = balance + $1, updated_at=NOW() WHERE id=$2",
+        [fee, req.user.id]
+      );
+      await query(
+        "UPDATE products SET paid_fee=0, paid_offer_id=NULL WHERE id=$1",
+        [req.params.id]
+      );
+    }
+    res.json({ ok: true, refunded: fee, message: `Post qayta faollashtirildi${fee > 0 ? `. ${fee.toLocaleString()} so'm qaytarildi` : ""}` });
+  } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 // DELETE /api/products/:id — o'z postini o'chirish

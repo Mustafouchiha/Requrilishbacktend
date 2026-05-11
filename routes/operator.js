@@ -615,18 +615,28 @@ router.post("/manual-confirm/:offerId", async (req, res) => {
       [offerId, offer.buyer_id, offer.seller_id, offer.product_id, offer.product_price || 0, opCard]
     );
     await query("UPDATE offers SET status='paid', updated_at=NOW() WHERE id=$1", [offerId]);
-    if (offer.product_id) await Product.setStatus(offer.product_id, "deleted");
+    if (offer.product_id) {
+      await Product.setStatus(offer.product_id, "pending_sale");
+      await query(
+        `UPDATE products SET pending_sale_until = NOW() + INTERVAL '1 day',
+         paid_fee = $1, paid_offer_id = $2 WHERE id = $3`,
+        [offer.product_price || 0, offerId, offer.product_id]
+      );
+    }
 
     const { notifyUser } = require("../bot");
+    const sellerContact = `👤 ${offer.seller_name||"—"}\n📱 ${offer.seller_phone||"—"}\n✈️ ${offer.seller_tg||"—"}`;
+    const buyerContact  = `👤 ${offer.buyer_name||"—"}\n📱 ${offer.buyer_phone||"—"}\n✈️ ${offer.buyer_tg||"—"}`;
+
     if (offer.buyer_chat) {
       await notifyUser(offer.buyer_chat,
-        `✅ *To'lovingiz tasdiqlandi!*\n\n📦 ${offer.product_name}\n\n📞 Sotuvchi:\n👤 ${offer.seller_name||"—"}\n📱 ${offer.seller_phone||"—"}\n✈️ ${offer.seller_tg||"—"}`,
+        `✅ *To'lovingiz tasdiqlandi!*\n\n📦 ${offer.product_name}\n\n📞 *Sotuvchi ma'lumotlari:*\n${sellerContact}`,
         { parse_mode: "Markdown" }
       ).catch(() => {});
     }
     if (offer.seller_chat) {
       await notifyUser(offer.seller_chat,
-        `💸 *Bitim yakunlandi!*\n\n📦 ${offer.product_name}\n\n📞 Xaridor:\n👤 ${offer.buyer_name||"—"}\n📱 ${offer.buyer_phone||"—"}\n✈️ ${offer.buyer_tg||"—"}`,
+        `💸 *To'lov tasdiqlandi!*\n\n📦 ${offer.product_name}\n\n📞 *Xaridor ma'lumotlari:*\n${buyerContact}\n\n_Profilingizda "Sotdim" yoki "Sotolmadim" tugmasini bosing._`,
         { parse_mode: "Markdown" }
       ).catch(() => {});
     }

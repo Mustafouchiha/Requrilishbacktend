@@ -168,13 +168,16 @@ async function initTables(p) {
 
   // Products ustunlarini qo'shish
   const prodCols = [
-    [`photos`,          `TEXT`],
-    [`status`,          `VARCHAR(30) DEFAULT 'active'`],
-    [`approved_by`,     `UUID`],
-    [`rejected_reason`, `TEXT`],
-    [`updated_at`,      `TIMESTAMPTZ DEFAULT NOW()`],
-    [`view_count`,      `INTEGER NOT NULL DEFAULT 0`],
-    [`like_count`,      `INTEGER NOT NULL DEFAULT 0`],
+    [`photos`,              `TEXT`],
+    [`status`,              `VARCHAR(30) DEFAULT 'active'`],
+    [`approved_by`,         `UUID`],
+    [`rejected_reason`,     `TEXT`],
+    [`updated_at`,          `TIMESTAMPTZ DEFAULT NOW()`],
+    [`view_count`,          `INTEGER NOT NULL DEFAULT 0`],
+    [`like_count`,          `INTEGER NOT NULL DEFAULT 0`],
+    [`pending_sale_until`,  `TIMESTAMPTZ`],
+    [`paid_fee`,            `NUMERIC NOT NULL DEFAULT 0`],
+    [`paid_offer_id`,       `UUID`],
   ];
   for (const [col, def] of prodCols) {
     await run(`
