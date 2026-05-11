@@ -36,16 +36,38 @@ function formatProduct(p, loggedIn = false) {
 router.get("/", optionalAuth, async (req, res) => {
   try {
     const { category, viloyat, tuman, search } = req.query;
-    const filter = { status: "active" };
+    const userId = req.user?.id || null;
 
-    if (req.user?.id) filter.owner_ne = req.user.id;
-    if (category && category !== "Barchasi") filter.category = category;
-    if (viloyat) filter.viloyat = viloyat;
-    if (tuman)   filter.tuman   = tuman;
-    if (search)  filter.search  = search;
+    const conditions = [`p.status = 'active'`];
+    const values = [];
+    let i = 1;
 
-    const products = await Product.find(filter);
-    res.json(products.map(p => formatProduct(p, !!req.user?.id)));
+    if (userId) { conditions.push(`p.owner_id != $${i++}`); values.push(userId); }
+    if (category && category !== "Barchasi") { conditions.push(`p.category = $${i++}`); values.push(category); }
+    if (viloyat) { conditions.push(`p.viloyat = $${i++}`); values.push(viloyat); }
+    if (tuman)   { conditions.push(`p.tuman = $${i++}`);   values.push(tuman); }
+    if (search)  {
+      conditions.push(`(p.name ILIKE $${i} OR p.viloyat ILIKE $${i} OR p.tuman ILIKE $${i})`);
+      values.push(`%${search}%`); i++;
+    }
+
+    const where = `WHERE ${conditions.join(" AND ")}`;
+    let isLikedSql = `false AS is_liked`;
+    if (userId) {
+      isLikedSql = `EXISTS(SELECT 1 FROM product_likes WHERE user_id=$${i++} AND product_id=p.id) AS is_liked`;
+      values.push(userId);
+    }
+
+    const { rows } = await query(
+      `SELECT p.*, u.name AS owner_name, u.phone AS owner_phone, u.telegram AS owner_telegram,
+              ${isLikedSql}
+       FROM products p LEFT JOIN users u ON u.id = p.owner_id
+       ${where}
+       ORDER BY p.created_at DESC`,
+      values
+    );
+
+    res.json(rows.map(p => formatProduct(p, !!userId)));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -54,8 +76,15 @@ router.get("/", optionalAuth, async (req, res) => {
 // GET /api/products/my — o'z postlari (barcha statuslar)
 router.get("/my", authMiddleware, async (req, res) => {
   try {
-    const products = await Product.find({ owner_id: req.user.id, status: "all" });
-    res.json(products.map(p => formatProduct(p, true)));
+    const { rows } = await query(
+      `SELECT p.*, u.name AS owner_name, u.phone AS owner_phone, u.telegram AS owner_telegram,
+              false AS is_liked
+       FROM products p LEFT JOIN users u ON u.id = p.owner_id
+       WHERE p.owner_id = $1
+       ORDER BY p.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(rows.map(p => formatProduct(p, true)));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
