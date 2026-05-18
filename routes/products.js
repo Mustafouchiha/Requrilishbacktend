@@ -195,31 +195,56 @@ router.get("/:id", optionalAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// POST /api/products/:id/view — ko'rishlar sonini oshirish
-router.post("/:id/view", async (req, res) => {
+// POST /api/products/:id/view — har bir ko'ruvchi faqat 1 marta
+router.post("/:id/view", optionalAuth, async (req, res) => {
   try {
-    await query(`UPDATE products SET view_count = view_count + 1 WHERE id=$1`, [req.params.id]);
-    res.json({ ok: true });
+    const guestId = String(req.body?.guestId || "").trim().slice(0, 64);
+    const viewerKey = req.user?.id
+      ? `u:${req.user.id}`
+      : (guestId ? `g:${guestId}` : null);
+    if (!viewerKey) return res.json({ ok: true, counted: false });
+
+    const { rows: inserted } = await query(
+      `INSERT INTO product_views (viewer_key, product_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING RETURNING 1`,
+      [viewerKey, req.params.id]
+    );
+    if (inserted.length > 0) {
+      await query(`UPDATE products SET view_count = view_count + 1 WHERE id=$1`, [req.params.id]);
+    }
+    const { rows: prod } = await query(`SELECT view_count FROM products WHERE id=$1`, [req.params.id]);
+    res.json({
+      ok: true,
+      counted: inserted.length > 0,
+      viewCount: Number(prod[0]?.view_count || 0),
+    });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// POST /api/products/:id/like — like toggle
+// POST /api/products/:id/like — har bir foydalanuvchi faqat 1 marta (olib tashlash yo'q)
 router.post("/:id/like", authMiddleware, async (req, res) => {
   try {
-    const { rows } = await query(
-      `SELECT 1 FROM product_likes WHERE user_id=$1 AND product_id=$2`,
+    const { rows: inserted } = await query(
+      `INSERT INTO product_likes (user_id, product_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING RETURNING 1`,
       [req.user.id, req.params.id]
     );
-    if (rows.length > 0) {
-      await query(`DELETE FROM product_likes WHERE user_id=$1 AND product_id=$2`, [req.user.id, req.params.id]);
-      await query(`UPDATE products SET like_count = GREATEST(0, like_count - 1) WHERE id=$1`, [req.params.id]);
-    } else {
-      await query(`INSERT INTO product_likes (user_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.user.id, req.params.id]);
-      await query(`UPDATE products SET like_count = like_count + 1 WHERE id=$1`, [req.params.id]);
+
+    if (inserted.length > 0) {
+      await query(
+        `UPDATE products SET like_count = (
+           SELECT COUNT(*)::int FROM product_likes WHERE product_id = $1
+         ) WHERE id = $1`,
+        [req.params.id]
+      );
     }
+
     const { rows: prod } = await query(`SELECT like_count FROM products WHERE id=$1`, [req.params.id]);
-    const liked = rows.length === 0;
-    res.json({ liked, likeCount: Number(prod[0]?.like_count || 0) });
+    res.json({
+      liked: true,
+      alreadyLiked: inserted.length === 0,
+      likeCount: Number(prod[0]?.like_count || 0),
+    });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

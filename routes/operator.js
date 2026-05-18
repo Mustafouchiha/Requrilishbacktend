@@ -157,10 +157,16 @@ router.put("/posts/:id/toggle-payment", async (req, res) => {
 router.put("/posts/:id/edit", async (req, res) => {
   try {
     const { query } = require("../db");
-    const allowed = ["name","category","price","unit","qty","condition","viloyat","tuman"];
+    const allowed = ["name","category","price","unit","qty","condition","viloyat","tuman","mahalla","description","photo","status"];
     const fields = []; const vals = [];
     for (const f of allowed) {
-      if (req.body[f] !== undefined) { fields.push(`${f} = $${vals.length + 1}`); vals.push(req.body[f]); }
+      if (req.body[f] === undefined) continue;
+      fields.push(`${f} = $${vals.length + 1}`);
+      vals.push(req.body[f]);
+    }
+    if (req.body.photos !== undefined && Array.isArray(req.body.photos)) {
+      fields.push(`photos = $${vals.length + 1}`);
+      vals.push(JSON.stringify(req.body.photos));
     }
     if (!fields.length) return res.status(400).json({ message: "O'zgartiriladigan maydon yo'q" });
     vals.push(req.params.id);
@@ -195,7 +201,8 @@ router.get("/products", async (req, res) => {
     let rows;
     if (!q && !useStatus) {
       ({ rows } = await query(
-        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.condition,
+                p.viloyat, p.tuman, p.mahalla, p.description, p.photo, p.photos, p.status,
                 p.view_count, p.like_count,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id
@@ -204,7 +211,8 @@ router.get("/products", async (req, res) => {
       ));
     } else if (!q && useStatus) {
       ({ rows } = await query(
-        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.condition,
+                p.viloyat, p.tuman, p.mahalla, p.description, p.photo, p.photos, p.status,
                 p.view_count, p.like_count,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id
@@ -214,7 +222,8 @@ router.get("/products", async (req, res) => {
       ));
     } else if (q && !useStatus) {
       ({ rows } = await query(
-        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.condition,
+                p.viloyat, p.tuman, p.mahalla, p.description, p.photo, p.photos, p.status,
                 p.view_count, p.like_count,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id
@@ -225,7 +234,8 @@ router.get("/products", async (req, res) => {
       ));
     } else {
       ({ rows } = await query(
-        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.viloyat, p.status,
+        `SELECT p.id, p.name, p.price, p.unit, p.qty, p.category, p.condition,
+                p.viloyat, p.tuman, p.mahalla, p.description, p.photo, p.photos, p.status,
                 p.view_count, p.like_count,
                 u.name AS owner_name, u.phone AS owner_phone, p.created_at
          FROM products p LEFT JOIN users u ON p.owner_id = u.id

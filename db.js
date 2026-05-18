@@ -210,6 +210,24 @@ async function initTables(p) {
     );
   `);
 
+  // product_views — har bir ko'ruvchi postni faqat 1 marta
+  await run(`
+    CREATE TABLE IF NOT EXISTS product_views (
+      viewer_key  TEXT        NOT NULL,
+      product_id  UUID        NOT NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (viewer_key, product_id)
+    );
+  `);
+
+  // like_count ni haqiqiy layklar bilan moslashtirish
+  await run(`
+    UPDATE products p
+    SET like_count = COALESCE((
+      SELECT COUNT(*)::int FROM product_likes pl WHERE pl.product_id = p.id
+    ), 0)
+  `).catch(() => {});
+
   // 4. Offers
   await run(`
     CREATE TABLE IF NOT EXISTS offers (
