@@ -86,8 +86,8 @@ const Product = {
   async create(data) {
     const { rows } = await query(
       `INSERT INTO products
-         (name, category, price, unit, qty, condition, viloyat, tuman, photo, photos, owner_id, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         (name, category, price, unit, qty, condition, viloyat, tuman, mahalla, description, photo, photos, owner_id, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
       [
         data.name,
@@ -98,6 +98,8 @@ const Product = {
         data.condition || "Yaxshi",
         data.viloyat,
         data.tuman || "",
+        data.mahalla || "",
+        data.description || "",
         data.photo || null,
         data.photos || null,
         data.owner_id,
@@ -111,7 +113,7 @@ const Product = {
     const sets = [];
     const values = [];
     let i = 1;
-    const allowed = ["name","category","price","unit","qty","condition","viloyat","tuman","photo","photos","is_active","status"];
+    const allowed = ["name","category","price","unit","qty","condition","viloyat","tuman","mahalla","description","photo","photos","is_active","status"];
     for (const [k, v] of Object.entries(fields)) {
       if (allowed.includes(k)) {
         sets.push(`${k} = $${i++}`);

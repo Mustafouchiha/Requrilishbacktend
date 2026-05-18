@@ -169,6 +169,8 @@ async function initTables(p) {
   // Products ustunlarini qo'shish
   const prodCols = [
     [`photos`,              `TEXT`],
+    [`mahalla`,             `VARCHAR(255) DEFAULT ''`],
+    [`description`,         `TEXT DEFAULT ''`],
     [`status`,              `VARCHAR(30) DEFAULT 'active'`],
     [`approved_by`,         `UUID`],
     [`rejected_reason`,     `TEXT`],

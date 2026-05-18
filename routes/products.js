@@ -6,6 +6,10 @@ const { query } = require("../db");
 
 const router = express.Router();
 
+function parseBool(v) {
+  return v === true || v === "t" || v === 1 || v === "1";
+}
+
 function formatProduct(p, loggedIn = false) {
   return {
     id:           p.id,
@@ -17,6 +21,8 @@ function formatProduct(p, loggedIn = false) {
     condition:    p.condition,
     viloyat:      p.viloyat,
     tuman:        p.tuman,
+    mahalla:      p.mahalla || "",
+    description:  p.description || "",
     photo:        p.photo,
     photos:       p.photos ? JSON.parse(p.photos) : (p.photo ? [p.photo] : []),
     ownerId:      p.owner_id,
@@ -28,7 +34,7 @@ function formatProduct(p, loggedIn = false) {
     createdAt:    p.created_at,
     viewCount:        Number(p.view_count || 0),
     likeCount:        Number(p.like_count || 0),
-    isLiked:          p.is_liked || false,
+    isLiked:          parseBool(p.is_liked),
     pendingSaleUntil: p.pending_sale_until || null,
     paidFee:          Number(p.paid_fee || 0),
   };
@@ -117,7 +123,7 @@ router.get("/my", authMiddleware, async (req, res) => {
 // POST /api/products — yangi post (pending_approval ga ketadi)
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { name, category, price, unit, qty, condition, viloyat, tuman, photo, photos } = req.body;
+    const { name, category, price, unit, qty, condition, viloyat, tuman, mahalla, description, photo, photos } = req.body;
 
     if (!name || !price || !qty || !viloyat) {
       return res.status(400).json({ message: "Barcha majburiy maydonlarni to'ldiring" });
@@ -132,6 +138,8 @@ router.post("/", authMiddleware, async (req, res) => {
       price: Number(price), unit: unit || "dona",
       qty: Number(qty), condition: condition || "Yaxshi",
       viloyat, tuman: tuman || "",
+      mahalla: mahalla || "",
+      description: description || "",
       photo: photo || (Array.isArray(photos) ? photos[0] : null) || null,
       photos: photosJson,
       owner_id: req.user.id,
@@ -205,12 +213,13 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
     if (rows.length > 0) {
       await query(`DELETE FROM product_likes WHERE user_id=$1 AND product_id=$2`, [req.user.id, req.params.id]);
       await query(`UPDATE products SET like_count = GREATEST(0, like_count - 1) WHERE id=$1`, [req.params.id]);
-      res.json({ liked: false });
     } else {
       await query(`INSERT INTO product_likes (user_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.user.id, req.params.id]);
       await query(`UPDATE products SET like_count = like_count + 1 WHERE id=$1`, [req.params.id]);
-      res.json({ liked: true });
     }
+    const { rows: prod } = await query(`SELECT like_count FROM products WHERE id=$1`, [req.params.id]);
+    const liked = rows.length === 0;
+    res.json({ liked, likeCount: Number(prod[0]?.like_count || 0) });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -218,7 +227,7 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
     const fields = {};
-    const allowed = ["name","category","price","unit","qty","condition","viloyat","tuman","photo","photos"];
+    const allowed = ["name","category","price","unit","qty","condition","viloyat","tuman","mahalla","description","photo","photos"];
     for (const f of allowed) {
       if (req.body[f] !== undefined) fields[f] = req.body[f];
     }
